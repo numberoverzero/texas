@@ -47,6 +47,9 @@ def traverse(root, path, sep=".", on_missing=raise_on_missing):
     node = root
     *segments, last = path.split(sep)
     for segment in segments:
+        # Skip empty segments - collapse "foo..bar.baz" into "foo.bar.baz"
+        if not segment:
+            continue
         visited.append(segment)
         child = node.get(segment, MISSING)
         if child is MISSING:
@@ -64,7 +67,8 @@ class PathDict(collections.abc.MutableMapping):
     generate = None
 
     def __init__(self, context, **kwargs):
-        self.data = self.update(kwargs)
+        self.data = {}
+        self.update(kwargs)
         self.context = context
         self.create_on_missing = create_on_missing(
             lambda: PathDict(self.context))
@@ -76,23 +80,35 @@ class PathDict(collections.abc.MutableMapping):
     def __setitem__(self, path, value):
         node, key = traverse(self, path, sep=self.context.sep,
                              on_missing=self.create_on_missing)
-        node[key] = value
+        if node is self:
+            self.data[key] = value
+        else:
+            node[key] = value
 
     def __getitem__(self, path):
         node, key = traverse(self, path, sep=self.context.sep,
                              on_missing=raise_on_missing)
-        return node[key]
+        if node is self:
+            return self.data[key]
+        else:
+            return node[key]
 
     def __delitem__(self, path):
         node, key = traverse(self, path, sep=self.context.sep,
                              on_missing=raise_on_missing)
-        del node[key]
+        if node is self:
+            del self.data[key]
+        else:
+            del node[key]
 
     def __iter__(self):
         return iter(self.data)
 
     def __len__(self):
         return len(self.data)
+
+    def __repr__(self):
+        return repr(dict(self))
 
 
 class Context(collections.abc.MutableMapping):
