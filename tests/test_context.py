@@ -23,7 +23,7 @@ def test_root(ctx):
         ctx.pop_context()
 
 
-def test_get_fallthrough(ctx):
+def test_fallthrough(ctx):
     ctx["root_key"] = "root_value"
 
     ctx.push_context("layer")
@@ -32,6 +32,10 @@ def test_get_fallthrough(ctx):
     # Both keys accessible
     assert ctx["root_key"] == "root_value"
     assert ctx["layer_key"] == "layer_value"
+
+    # Deletes only act on current context
+    with pytest.raises(KeyError):
+        del ctx["root_key"]
 
     # Can't access layer_key anymore
     ctx.pop_context()
@@ -86,3 +90,33 @@ def test_current_only(ctx):
     # len, iter look at ctx.current only
     assert len(ctx) == 1
     assert list(ctx.items()) == [("layer_key", "layer_value")]
+
+
+def test_manager_nesting(ctx):
+    ctx["root_key"] = "root_value"
+    with ctx("layer1"):
+        ctx["layer1_key"] = "layer1_value"
+        with ctx("layer2"):
+            ctx["layer2_key"] = "layer2_value"
+            assert "root_key" in ctx
+            assert "layer1_key" in ctx
+            assert "layer2_key" in ctx
+        # Lost layer2
+        assert "root_key" in ctx
+        assert "layer1_key" in ctx
+        assert "layer2_key" not in ctx
+    # Lost layer1, layer2
+    assert "root_key" in ctx
+    assert "layer1_key" not in ctx
+    assert "layer2_key" not in ctx
+
+
+def test_manager_cleanup(ctx):
+    try:
+        with ctx("layer"):
+            ctx["should.not.be"] = "accessible"
+            raise RuntimeError()
+    except RuntimeError:
+        pass
+
+    assert "should.not.be" not in ctx

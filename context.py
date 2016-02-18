@@ -152,8 +152,10 @@ class Context(collections.abc.MutableMapping):
         assert ctx["_.ctx.local.foo"] == "bar"
         """
         self.push_context(name)
-        yield self
-        self.pop_context(name=name)
+        try:
+            yield self
+        finally:
+            self.pop_context(name=name)
 
     def push_context(self, name):
         # push_context("hello") => _.contexts.hello
