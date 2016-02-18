@@ -7,7 +7,7 @@ README = open(os.path.join(HERE, 'README.rst')).read()
 
 
 def get_version():
-    with open("context.py") as f:
+    with open("texas.py") as f:
         for line in f:
             if line.startswith("__version__"):
                 return eval(line.split("=")[-1])
@@ -44,7 +44,7 @@ if __name__ == "__main__":
         keywords='dict nested context',
         platforms='any',
         include_package_data=True,
-        py_modules=["context"],
+        py_modules=["texas"],
         install_requires=REQUIREMENTS,
         tests_require=REQUIREMENTS + TEST_REQUIREMENTS,
     )
