@@ -2,19 +2,20 @@ import pytest
 from context import PathDict
 
 
-class Context:
-    """Dummy context with a separator"""
-    sep = "."
-
-
 @pytest.fixture
 def context():
+    class Context:
+        """Dummy context with a separator"""
+        sep = "."
     return Context()
 
 
 @pytest.fixture
 def d(context):
-    return PathDict(context)
+    d = PathDict(context)
+    # Spoof single-element context for now
+    context.g = d
+    return d
 
 
 def test_get_missing(d):
@@ -45,3 +46,27 @@ def test_collapse_empty_path_segments(d):
     assert len(d["a"]) == 1
     assert len(d["a"]["b"]) == 1
     assert d["a"]["b"]["c"] == "3 deep"
+
+
+def test_g_recursion(d, context):
+    assert d.g is context.g
+    assert d.g.g is d
+    assert d.g is d
+
+
+def test_delete_missing(d):
+    with pytest.raises(KeyError):
+        del d["foo"]
+
+
+def test_delete_path(d):
+    d["foo.bar.baz"] = "blah"
+    del d["foo.bar.baz"]
+    assert "baz" not in d["foo.bar"]
+
+
+def test_contains(d):
+    d["foo.bar.baz"] = "blah"
+    assert "foo" in d
+    assert "foo.bar" in d
+    assert "foo.missing" not in d
