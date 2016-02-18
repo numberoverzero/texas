@@ -3,8 +3,6 @@ Pure python.  Path keys.  ChainedMap on steroids.
 Installation
 ============
 
-Pure python.
-
 ::
 
     pip install texas

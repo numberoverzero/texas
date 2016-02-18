@@ -1,6 +1,6 @@
 import collections.abc
 import contextlib
-__version__ = "0.1"
+__version__ = "0.1.1"
 
 MISSING = object()
 ILLEGAL_PREFIX = ValueError(
