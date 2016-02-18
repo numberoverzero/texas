@@ -1,6 +1,6 @@
 import collections.abc
 import contextlib
-__version__ = "0.1.1"
+__version__ = "0.1.2"
 
 MISSING = object()
 ILLEGAL_PREFIX = ValueError(
@@ -122,10 +122,8 @@ class Context(collections.abc.MutableMapping):
 
         root = PathDict(self, **kwargs)
         # Initial set uses path so all levels are PathDicts
-        root_path = self.sep.join((self.pre, "root"))
-        current_path = self.sep.join((self.pre, "current"))
-        root[root_path] = root
-        root[current_path] = root
+        root[self.pre + self.sep + "root"] = root
+        root[self.pre + self.sep + "current"] = root
         self._dicts = [root]
 
     @property

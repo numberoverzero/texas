@@ -155,3 +155,12 @@ def test_root_access(ctx):
     assert ctx.g["_.root"] is ctx.g
     assert ctx.g["_.current"] is layer1
     assert ctx.g["_.contexts.layer1"] is layer1
+
+
+def test_current_fallthrough(ctx):
+    """current doesn't fall through"""
+    ctx["root_key"] = "root_value"
+
+    ctx.push_context("layer1")
+    current = ctx.current
+    assert "root_key" not in current

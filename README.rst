@@ -54,6 +54,16 @@ But they also track contextual changes::
     assert "layer1_value" == ctx["layer1.key"]
     ctx.pop_context()
 
+Access specific contexts::
+
+    # current context
+    # access variables ONLY in the current context (no fall through)
+    ctx = texas.Context()
+    ctx["root_key"] = "root_value"
+
+    ctx.push_context("layer1")
+    assert "root_key" not in ctx.current
+
     # global context
     # WARNING: be careful in the reserved area of the global root,
     # as you can break the context tracking.
