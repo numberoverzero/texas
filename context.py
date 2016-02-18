@@ -3,7 +3,6 @@ import contextlib
 __version__ = "0.1"
 
 MISSING = object()
-
 ILLEGAL_PREFIX = ValueError(
     "reserved_prefix cannot contain the path separator.")
 CANNOT_MODIFY_ROOT = KeyError(
@@ -115,15 +114,18 @@ class Context(collections.abc.MutableMapping):
     sep = None
     pre = None
 
-    def __init__(self, ctx_separator, ctx_reserved_prefix, **kwargs):
+    def __init__(self, ctx_separator=".", ctx_reserved_prefix="_", **kwargs):
         if ctx_separator in ctx_reserved_prefix:
             raise ILLEGAL_PREFIX
         self.sep = ctx_separator
         self.pre = ctx_reserved_prefix
 
         root = PathDict(self, **kwargs)
-        root[self.pre]["root"] = root
-        root[self.pre]["current"] = root
+        # Initial set uses path so all levels are PathDicts
+        root_path = self.sep.join((self.pre, "root"))
+        current_path = self.sep.join((self.pre, "current"))
+        root[root_path] = root
+        root[current_path] = root
         self._dicts = [root]
 
     @property
@@ -149,24 +151,33 @@ class Context(collections.abc.MutableMapping):
         assert ctx["hello"]["world"] == "!"
         assert ctx["_.ctx.local.foo"] == "bar"
         """
-        local = self._push(name)
+        local = self.push_context(name)
         yield local
-        self._pop()
+        self.pop_context(name=name)
 
-    def _push(self, name):
-        local = PathDict(self)
-        # Store the dict in _.contexts.[name]
-        #                   _.current
-        self.g[self.pre]["contexts"][name] = local
+    def push_context(self, name):
+        # push_context("hello") => _.contexts.hello
+        context_path = self._context_path(name)
+        local = self.g.setdefault(context_path, PathDict(self))
         self.g[self.pre]["current"] = local
         self._dicts.append(local)
         return local
 
-    def _pop(self):
+    def pop_context(self, *, name=MISSING):
         if len(self._dicts) == 1:
             raise KeyError("Can't pop root context")
-        self._dicts.pop()
+        # When name is provided, validate current is the
+        # named context before popping.  Raise KeyError on failure
+        if name is not MISSING:
+            context_path = self._context_path(name)
+            if self.current is not self.g[context_path]:
+                raise KeyError("{} is not the current context".format(name))
+        old_local = self._dicts.pop()
         self.g[self.pre]["current"] = self._dicts[-1]
+        return old_local
+
+    def _context_path(self, name):
+        return self.sep.join((self.pre, "contexts", name))
 
     def __setitem__(self, path, value):
         # Disallow modifying the root by accident
