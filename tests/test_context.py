@@ -120,3 +120,29 @@ def test_manager_cleanup(ctx):
         pass
 
     assert "should.not.be" not in ctx
+
+
+def test_contextual_path_resolution(ctx):
+    """pathed set only touches current context"""
+    some_level = dict()
+    ctx["some.level"] = some_level
+
+    ctx.push_context("layer1")
+    ctx["some.level.thing"] = "value"
+    ctx.pop_context()
+
+    assert not some_level
+
+
+def test_contextual_protection_limit(ctx):
+    """modification to mutable values in lower contexts are persisted"""
+    some_level = dict()
+    ctx["some.level"] = some_level
+
+    ctx.push_context("layer1")
+    ctx["some.level"]["thing"] = "value"
+    ctx.pop_context()
+
+    # not empty - the ["some.level"] is a get, which passes through.
+    # then it's a normal set on ["thing"]
+    assert some_level == {"thing": "value"}
