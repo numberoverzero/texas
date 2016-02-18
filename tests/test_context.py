@@ -146,3 +146,12 @@ def test_contextual_protection_limit(ctx):
     # not empty - the ["some.level"] is a get, which passes through.
     # then it's a normal set on ["thing"]
     assert some_level == {"thing": "value"}
+
+
+def test_root_access(ctx):
+    """can modify internal storage through .g"""
+    layer1 = ctx.push_context("layer1")
+
+    assert ctx.g["_.root"] is ctx.g
+    assert ctx.g["_.current"] is layer1
+    assert ctx.g["_.contexts.layer1"] is layer1
