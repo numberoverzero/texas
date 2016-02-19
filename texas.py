@@ -120,11 +120,12 @@ class Context(collections.abc.MutableMapping):
         self.sep = ctx_separator
         self.pre = ctx_reserved_prefix
 
-        root = PathDict(self, **kwargs)
+        root = PathDict(self)
         # Initial set uses path so all levels are PathDicts
         root[self.pre + self.sep + "g"] = root
         root[self.pre + self.sep + "current"] = root
         self._dicts = [root]
+        self.update(kwargs)
 
     @property
     def g(self):

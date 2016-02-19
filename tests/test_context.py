@@ -24,6 +24,16 @@ def test_init_values():
     assert context["c.d"] == "e"
 
 
+def test_init_prefixed_raises():
+    base = {
+        "cannot": "use",
+        "_": "prefixed",
+        "_keys": "."
+    }
+    with pytest.raises(KeyError):
+        Context(**base)
+
+
 def test_root(ctx):
     assert ctx.g is ctx.current
     assert ctx.g is ctx.g.g
