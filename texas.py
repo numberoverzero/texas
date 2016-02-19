@@ -71,25 +71,25 @@ def traverse(root, path, sep=".", on_missing=raise_on_missing):
 
 
 class PathDict(collections.abc.MutableMapping):
-    sep = None
-    create_on_missing = None
+    _sep = None
+    _create_on_missing = None
 
     def __init__(self, *args, path_separator=".", path_factory=None, **kwargs):
+        self._sep = path_separator
         self._data = {}
-        self.sep = path_separator
-        self.create_on_missing = create_on_missing(path_factory or dict)
-        self.update(kwargs)
+        self._create_on_missing = create_on_missing(path_factory or dict)
+        self.update(*args, **kwargs)
 
     def __setitem__(self, path, value):
-        node, key = traverse(self, path, sep=self.sep,
-                             on_missing=self.create_on_missing)
+        node, key = traverse(self, path, sep=self._sep,
+                             on_missing=self._create_on_missing)
         if node is self:
             self._data[key] = value
         else:
             node[key] = value
 
     def __getitem__(self, path):
-        node, key = traverse(self, path, sep=self.sep,
+        node, key = traverse(self, path, sep=self._sep,
                              on_missing=raise_on_missing)
         if node is self:
             return self._data[key]
@@ -97,7 +97,7 @@ class PathDict(collections.abc.MutableMapping):
             return node[key]
 
     def __delitem__(self, path):
-        node, key = traverse(self, path, sep=self.sep,
+        node, key = traverse(self, path, sep=self._sep,
                              on_missing=raise_on_missing)
         if node is self:
             del self._data[key]
@@ -112,28 +112,30 @@ class PathDict(collections.abc.MutableMapping):
 
 
 class Context(collections.abc.MutableMapping):
-    sep = None
-    pre = None
-    factory = None
+    _sep = None
+    _pre = None
+    _dicts = None
+    _factory = None
 
     def __init__(self,
+                 *args,
                  ctx_separator=".",
                  ctx_reserved_prefix="_",
                  ctx_factory=None,
                  **kwargs):
         if ctx_separator in ctx_reserved_prefix:
             raise ILLEGAL_PREFIX
-        self.sep = ctx_separator
-        self.pre = ctx_reserved_prefix
-        self.factory = ctx_factory or default_context_factory(ctx_separator)
+        self._sep = ctx_separator
+        self._pre = ctx_reserved_prefix
+        self._factory = ctx_factory or default_context_factory(ctx_separator)
 
-        root = self.factory()
+        root = self._factory()
         self._dicts = [root]
         # Initial set uses path so all levels are PathDicts
-        root[self.pre + self.sep + "g"] = root
-        root[self.pre + self.sep + "current"] = root
+        root[self._pre + self._sep + "g"] = root
+        root[self._pre + self._sep + "current"] = root
 
-        self.update(kwargs)
+        self.update(*args, **kwargs)
 
     @property
     def g(self):
@@ -172,9 +174,9 @@ class Context(collections.abc.MutableMapping):
 
         Does not modify the context stack.
         """
-        context_path = self.sep.join((self.pre, "contexts", name))
+        context_path = self._sep.join((self._pre, "contexts", name))
         if create:
-            return self.g.setdefault(context_path, self.factory())
+            return self.g.setdefault(context_path, self._factory())
         try:
             return self.g[context_path]
         # Provide a better error message
@@ -183,7 +185,7 @@ class Context(collections.abc.MutableMapping):
 
     def push_context(self, name):
         local = self.get_context(name, create=True)
-        self.g[self.pre]["current"] = local
+        self.g[self._pre]["current"] = local
         self._dicts.append(local)
         return local
 
@@ -196,12 +198,12 @@ class Context(collections.abc.MutableMapping):
             if self.get_context(name, create=False) is not self.current:
                 raise KeyError("{} is not the current context".format(name))
         old_local = self._dicts.pop()
-        self.g[self.pre]["current"] = self._dicts[-1]
+        self.g[self._pre]["current"] = self._dicts[-1]
         return old_local
 
     def __setitem__(self, path, value):
         # Disallow modifying the root by accident
-        if path.startswith(self.pre) and (self.current is self.g):
+        if path.startswith(self._pre) and (self.current is self.g):
             raise CANNOT_MODIFY_ROOT
         self.current[path] = value
 
@@ -213,7 +215,7 @@ class Context(collections.abc.MutableMapping):
         raise KeyError(path)
 
     def __delitem__(self, path):
-        if path.startswith(self.pre) and (self.current is self.g):
+        if path.startswith(self._pre) and (self.current is self.g):
             raise CANNOT_MODIFY_ROOT
         del self.current[path]
 
