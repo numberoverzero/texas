@@ -175,13 +175,12 @@ class Context(collections.abc.MutableMapping):
         Does not modify the context stack.
         """
         context_path = self._sep.join((self._pre, "contexts", name))
-        if create:
-            return self.g.setdefault(context_path, self._factory())
-        try:
-            return self.g[context_path]
-        # Provide a better error message
-        except KeyError:
-            raise KeyError("Unknown context {}".format(name))
+        context = self.g.get(context_path, MISSING)
+        if context is MISSING:
+            if not create:
+                raise KeyError("Unknown context {}".format(name))
+            context = self.g[context_path] = self._factory()
+        return context
 
     def push_context(self, name):
         local = self.get_context(name, create=True)

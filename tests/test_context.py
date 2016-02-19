@@ -1,5 +1,5 @@
 import pytest
-from texas import Context
+from texas import Context, PathDict
 
 
 @pytest.fixture
@@ -204,6 +204,44 @@ def test_current_fallthrough(ctx):
     ctx.push_context("layer1")
     current = ctx.current
     assert "root_key" not in current
+
+
+def test_custom_factory():
+    path_dicts_created = 0
+    contexts_created = 0
+
+    def expect(contexts, path_dicts):
+        print(dict(ctx))
+        assert contexts_created == contexts
+        assert path_dicts_created == path_dicts
+
+    def path_factory():
+        nonlocal path_dicts_created
+        path_dicts_created += 1
+        return dict()
+
+    def context_factory():
+        nonlocal contexts_created
+        contexts_created += 1
+        return PathDict(path_factory=path_factory)
+
+    ctx = Context(ctx_factory=context_factory)
+    # "g" | "_"
+    expect(1, 1)
+
+    with ctx("layer1"):
+        pass
+    # "g", "layer1" | "_", "_.contexts"
+    expect(2, 2)
+
+    ctx["foo.bar.baz"] = "blah"
+    # "g", "layer1" | "_", "_.contexts", "foo", "foo.bar"
+    expect(2, 4)
+
+    with ctx("layer1"):
+        pass
+    # existing context, nothing created
+    expect(2, 4)
 
 
 def test_init_args(base, more):
