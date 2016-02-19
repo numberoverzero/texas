@@ -3,19 +3,8 @@ from texas import PathDict
 
 
 @pytest.fixture
-def context():
-    class Context:
-        """Dummy context with a separator"""
-        sep = "."
-    return Context()
-
-
-@pytest.fixture
-def d(context):
-    d = PathDict(context)
-    # Spoof single-element context for now
-    context.g = d
-    return d
+def d():
+    return PathDict(path_sep=".")
 
 
 def test_get_missing(d):
@@ -42,16 +31,9 @@ def test_set_path_missing(d):
 def test_collapse_empty_path_segments(d):
     path = "a..b.c"
     d[path] = "3 deep"
-    print(d.data)
     assert len(d["a"]) == 1
     assert len(d["a"]["b"]) == 1
     assert d["a"]["b"]["c"] == "3 deep"
-
-
-def test_g_recursion(d, context):
-    assert d.g is context.g
-    assert d.g.g is d
-    assert d.g is d
 
 
 def test_delete_missing(d):

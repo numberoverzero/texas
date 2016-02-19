@@ -36,7 +36,6 @@ def test_init_prefixed_raises():
 
 def test_root(ctx):
     assert ctx.g is ctx.current
-    assert ctx.g is ctx.g.g
 
     ctx["a"] = "b"
     assert ctx["a"] == "b"

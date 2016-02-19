@@ -62,22 +62,18 @@ def traverse(root, path, sep=".", on_missing=raise_on_missing):
 
 class PathDict(collections.abc.MutableMapping):
     data = None
-    context = None
+    sep = None
     generate = None
 
-    def __init__(self, context, **kwargs):
+    def __init__(self, *args, path_sep=".", **kwargs):
         self.data = {}
-        self.context = context
+        self.sep = path_sep
         self.create_on_missing = create_on_missing(
-            lambda: PathDict(self.context))
+            lambda: PathDict(path_sep=path_sep))
         self.update(kwargs)
 
-    @property
-    def g(self):
-        return self.context.g
-
     def __setitem__(self, path, value):
-        node, key = traverse(self, path, sep=self.context.sep,
+        node, key = traverse(self, path, sep=self.sep,
                              on_missing=self.create_on_missing)
         if node is self:
             self.data[key] = value
@@ -85,7 +81,7 @@ class PathDict(collections.abc.MutableMapping):
             node[key] = value
 
     def __getitem__(self, path):
-        node, key = traverse(self, path, sep=self.context.sep,
+        node, key = traverse(self, path, sep=self.sep,
                              on_missing=raise_on_missing)
         if node is self:
             return self.data[key]
@@ -93,7 +89,7 @@ class PathDict(collections.abc.MutableMapping):
             return node[key]
 
     def __delitem__(self, path):
-        node, key = traverse(self, path, sep=self.context.sep,
+        node, key = traverse(self, path, sep=self.sep,
                              on_missing=raise_on_missing)
         if node is self:
             del self.data[key]
@@ -106,9 +102,6 @@ class PathDict(collections.abc.MutableMapping):
     def __len__(self):
         return len(self.data)
 
-    def __repr__(self):
-        return repr(dict(self))
-
 
 class Context(collections.abc.MutableMapping):
     sep = None
@@ -120,7 +113,7 @@ class Context(collections.abc.MutableMapping):
         self.sep = ctx_separator
         self.pre = ctx_reserved_prefix
 
-        root = PathDict(self)
+        root = PathDict(path_sep=self.sep)
         # Initial set uses path so all levels are PathDicts
         root[self.pre + self.sep + "g"] = root
         root[self.pre + self.sep + "current"] = root
