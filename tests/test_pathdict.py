@@ -4,7 +4,7 @@ from texas import PathDict
 
 @pytest.fixture
 def d():
-    return PathDict(path_sep=".")
+    return PathDict(path_separator=".")
 
 
 def test_get_missing(d):
@@ -52,3 +52,30 @@ def test_contains(d):
     assert "foo" in d
     assert "foo.bar" in d
     assert "foo.missing" not in d
+
+
+def test_custom_factory():
+    created = []
+
+    def factory():
+        new = dict()
+        created.append(new)
+        return new
+
+    d = PathDict(path_separator="!", path_factory=factory)
+
+    # root and foo are created, with "last" a key inside of root!foo
+    d["root!foo!last"] = "value"
+    assert created == [d["root"], d["root!foo"]]
+
+
+def test_init_arg(base, more):
+    d = PathDict(base)
+    assert d["root.foo.last"] == "value"
+
+    d = PathDict(**base)
+    assert d["root.foo.last"] == "value"
+
+    d = PathDict(base, **more)
+    assert d["root.foo.last"] == "value"
+    assert d["more.leaf"] == "value"
