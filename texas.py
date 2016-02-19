@@ -65,11 +65,10 @@ class PathDict(collections.abc.MutableMapping):
     sep = None
     generate = None
 
-    def __init__(self, *args, path_sep=".", **kwargs):
+    def __init__(self, *args, path_sep=".", path_factory=None, **kwargs):
         self.data = {}
         self.sep = path_sep
-        self.create_on_missing = create_on_missing(
-            lambda: PathDict(path_sep=path_sep))
+        self.create_on_missing = create_on_missing(path_factory or dict)
         self.update(kwargs)
 
     def __setitem__(self, path, value):
