@@ -69,7 +69,7 @@ def test_custom_factory():
     assert created == [d["root"], d["root!foo"]]
 
 
-def test_init_arg(base, more):
+def test_init_args(base, more):
     d = PathDict(base)
     assert d["root.foo.last"] == "value"
 

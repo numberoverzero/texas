@@ -204,3 +204,15 @@ def test_current_fallthrough(ctx):
     ctx.push_context("layer1")
     current = ctx.current
     assert "root_key" not in current
+
+
+def test_init_args(base, more):
+    d = Context(base)
+    assert d["root.foo.last"] == "value"
+
+    d = Context(**base)
+    assert d["root.foo.last"] == "value"
+
+    d = Context(base, **more)
+    assert d["root.foo.last"] == "value"
+    assert d["more.leaf"] == "value"
