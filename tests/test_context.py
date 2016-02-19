@@ -111,6 +111,21 @@ def test_manager_nesting(ctx):
     assert "layer2_key" not in ctx
 
 
+def test_manager_names(ctx):
+    with ctx("layer1"):
+        ctx["layer1_key"] = "layer1_value"
+
+    with ctx("layer1", "layer2"):
+        ctx["layer2_key"] = "layer2_value"
+        assert ctx["layer1_key"] == "layer1_value"
+
+    with ctx("layer1"):
+        assert "layer2_key" not in ctx
+
+    with ctx("layer2"):
+        assert ctx["layer2_key"] == "layer2_value"
+
+
 def test_manager_cleanup(ctx):
     try:
         with ctx("layer"):

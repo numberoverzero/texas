@@ -136,7 +136,7 @@ class Context(collections.abc.MutableMapping):
         return self._dicts[-1]
 
     @contextlib.contextmanager
-    def __call__(self, name):
+    def __call__(self, *names):
         """
         Usage
         -----
@@ -149,11 +149,13 @@ class Context(collections.abc.MutableMapping):
         assert ctx["hello"]["world"] == "!"
         assert ctx["_.ctx.local.foo"] == "bar"
         """
-        self.push_context(name)
+        for name in names:
+            self.push_context(name)
         try:
             yield self
         finally:
-            self.pop_context(name=name)
+            for name in reversed(names):
+                self.pop_context(name=name)
 
     def push_context(self, name):
         # push_context("hello") => _.contexts.hello
