@@ -67,10 +67,10 @@ class PathDict(collections.abc.MutableMapping):
 
     def __init__(self, context, **kwargs):
         self.data = {}
-        self.update(kwargs)
         self.context = context
         self.create_on_missing = create_on_missing(
             lambda: PathDict(self.context))
+        self.update(kwargs)
 
     @property
     def g(self):

@@ -12,6 +12,18 @@ def test_invalid_root():
         Context(ctx_separator="!", ctx_reserved_prefix="_!_")
 
 
+def test_init_values():
+    base = {
+        "a": "b",
+        "c": {
+            "d": "e"
+        }
+    }
+    context = Context(**base)
+    assert context["a"] == "b"
+    assert context["c.d"] == "e"
+
+
 def test_root(ctx):
     assert ctx.g is ctx.current
     assert ctx.g is ctx.g.g
