@@ -122,7 +122,7 @@ class Context(collections.abc.MutableMapping):
 
         root = PathDict(self, **kwargs)
         # Initial set uses path so all levels are PathDicts
-        root[self.pre + self.sep + "root"] = root
+        root[self.pre + self.sep + "g"] = root
         root[self.pre + self.sep + "current"] = root
         self._dicts = [root]
 

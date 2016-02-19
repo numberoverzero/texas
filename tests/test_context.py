@@ -152,7 +152,7 @@ def test_root_access(ctx):
     """can modify internal storage through .g"""
     layer1 = ctx.push_context("layer1")
 
-    assert ctx.g["_.root"] is ctx.g
+    assert ctx.g["_.g"] is ctx.g
     assert ctx.g["_.current"] is layer1
     assert ctx.g["_.contexts.layer1"] is layer1
 
