@@ -1,6 +1,6 @@
 import collections.abc
 import contextlib
-__version__ = "0.1.2"
+__version__ = "0.2"
 
 MISSING = object()
 ILLEGAL_PREFIX = ValueError(
@@ -71,13 +71,33 @@ def traverse(root, path, sep=".", on_missing=raise_on_missing):
 
 
 class PathDict(collections.abc.MutableMapping):
+    """Path navigable dict, inserts missing nodes during set.
+
+    Args:
+        path_separator (Optional[str]):
+            string that separates each segment of
+            a path.  Defaults to "."
+        path_factory (Callable[[], collections.abc.MutableMapping]):
+            no-arg function that returns an object that implements the
+            mapping interface.  Used to fill missing segments when
+            setting values.  Defaults to dict.
+
+    Usage:
+
+        >>> config = PathDict(path_separator="/")
+        >>> config["~/ws/texas"] = ["tox.ini", ".travis.yml"]
+        >>> config["~/ws/bloop"] = [".gitignore"]
+        >>> print(config["~/ws"])
+        {'bloop': ['.gitignore'], 'texas': ['tox.ini', '.travis.yml']}
+
+    """
     _sep = None
     _create_on_missing = None
 
-    def __init__(self, *args, path_separator=".", path_factory=None, **kwargs):
+    def __init__(self, *args, path_separator=".", path_factory=dict, **kwargs):
         self._sep = path_separator
         self._data = {}
-        self._create_on_missing = create_on_missing(path_factory or dict)
+        self._create_on_missing = create_on_missing(path_factory)
         self.update(*args, **kwargs)
 
     def __setitem__(self, path, value):
