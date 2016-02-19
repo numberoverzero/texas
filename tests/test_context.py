@@ -76,6 +76,10 @@ def test_pop_name(ctx):
     with pytest.raises(KeyError):
         ctx.pop_context(name="layer2")
 
+    # pop unknown context with validation
+    with pytest.raises(KeyError):
+        ctx.pop_context(name="unknown")
+
 
 def test_root_protection(ctx):
     with pytest.raises(KeyError):

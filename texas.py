@@ -35,12 +35,22 @@ def create_on_missing(factory):
     return on_missing
 
 
-def traverse(root, path, sep=".", on_missing=raise_on_missing):
-    """ returns a (node, key) of the last node in the chain and its key.
+def default_context_factory(separator):
+    """
+    By default, Context creates a PathDict for each context.
 
-        sep: splitting character in the path
-        on_missing: func that takes (node, key, visited, sep) and returns a
-                    new value for the missing key or raises.
+    Each of those PathDicts will use regular dicts for storage.
+    """
+    return lambda: PathDict(path_factory=dict, path_separator=separator)
+
+
+def traverse(root, path, sep=".", on_missing=raise_on_missing):
+    """
+    Returns a (node, key) of the last node in the chain and its key.
+
+    sep: splitting character in the path
+    on_missing: func that takes (node, key, visited, sep) and returns a
+                new value for the missing key or raises.
     """
     visited = []
     node = root
@@ -61,13 +71,12 @@ def traverse(root, path, sep=".", on_missing=raise_on_missing):
 
 
 class PathDict(collections.abc.MutableMapping):
-    data = None
     sep = None
-    generate = None
+    create_on_missing = None
 
-    def __init__(self, *args, path_sep=".", path_factory=None, **kwargs):
-        self.data = {}
-        self.sep = path_sep
+    def __init__(self, *args, path_separator=".", path_factory=None, **kwargs):
+        self._data = {}
+        self.sep = path_separator
         self.create_on_missing = create_on_missing(path_factory or dict)
         self.update(kwargs)
 
@@ -75,7 +84,7 @@ class PathDict(collections.abc.MutableMapping):
         node, key = traverse(self, path, sep=self.sep,
                              on_missing=self.create_on_missing)
         if node is self:
-            self.data[key] = value
+            self._data[key] = value
         else:
             node[key] = value
 
@@ -83,7 +92,7 @@ class PathDict(collections.abc.MutableMapping):
         node, key = traverse(self, path, sep=self.sep,
                              on_missing=raise_on_missing)
         if node is self:
-            return self.data[key]
+            return self._data[key]
         else:
             return node[key]
 
@@ -91,32 +100,39 @@ class PathDict(collections.abc.MutableMapping):
         node, key = traverse(self, path, sep=self.sep,
                              on_missing=raise_on_missing)
         if node is self:
-            del self.data[key]
+            del self._data[key]
         else:
             del node[key]
 
     def __iter__(self):
-        return iter(self.data)
+        return iter(self._data)
 
     def __len__(self):
-        return len(self.data)
+        return len(self._data)
 
 
 class Context(collections.abc.MutableMapping):
     sep = None
     pre = None
+    factory = None
 
-    def __init__(self, ctx_separator=".", ctx_reserved_prefix="_", **kwargs):
+    def __init__(self,
+                 ctx_separator=".",
+                 ctx_reserved_prefix="_",
+                 ctx_factory=None,
+                 **kwargs):
         if ctx_separator in ctx_reserved_prefix:
             raise ILLEGAL_PREFIX
         self.sep = ctx_separator
         self.pre = ctx_reserved_prefix
+        self.factory = ctx_factory or default_context_factory(ctx_separator)
 
-        root = PathDict(path_sep=self.sep)
+        root = self.factory()
+        self._dicts = [root]
         # Initial set uses path so all levels are PathDicts
         root[self.pre + self.sep + "g"] = root
         root[self.pre + self.sep + "current"] = root
-        self._dicts = [root]
+
         self.update(kwargs)
 
     @property
@@ -150,10 +166,23 @@ class Context(collections.abc.MutableMapping):
             for name in reversed(names):
                 self.pop_context(name=name)
 
+    def get_context(self, name, create=True):
+        """
+        Return (optionally create) a context.
+
+        Does not modify the context stack.
+        """
+        context_path = self.sep.join((self.pre, "contexts", name))
+        if create:
+            return self.g.setdefault(context_path, self.factory())
+        try:
+            return self.g[context_path]
+        # Provide a better error message
+        except KeyError:
+            raise KeyError("Unknown context {}".format(name))
+
     def push_context(self, name):
-        # push_context("hello") => _.contexts.hello
-        context_path = self._context_path(name)
-        local = self.g.setdefault(context_path, PathDict(self))
+        local = self.get_context(name, create=True)
         self.g[self.pre]["current"] = local
         self._dicts.append(local)
         return local
@@ -161,18 +190,14 @@ class Context(collections.abc.MutableMapping):
     def pop_context(self, *, name=MISSING):
         if len(self._dicts) == 1:
             raise KeyError("Can't pop root context")
-        # When name is provided, validate current is the
-        # named context before popping.  Raise KeyError on failure
+        # When name is provided, validate before popping.
+        # Raises KeyError when the requested pop isn't current
         if name is not MISSING:
-            context_path = self._context_path(name)
-            if self.current is not self.g[context_path]:
+            if self.get_context(name, create=False) is not self.current:
                 raise KeyError("{} is not the current context".format(name))
         old_local = self._dicts.pop()
         self.g[self.pre]["current"] = self._dicts[-1]
         return old_local
-
-    def _context_path(self, name):
-        return self.sep.join((self.pre, "contexts", name))
 
     def __setitem__(self, path, value):
         # Disallow modifying the root by accident
