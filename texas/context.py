@@ -1,5 +1,4 @@
 import collections.abc
-import itertools
 
 from .traversal import traverse, raise_on_missing, create_on_missing
 from .merger import merge
@@ -191,11 +190,13 @@ class ContextView(collections.abc.MutableMapping):
         del self.current[path]
 
     def __len__(self):
-        # Can't use a simple sum in case there are overlapping keys
-        return len(set(iter(self)))
+        # Avoid creating an intermediate set/list
+        return sum(1 for _ in iter(self))
 
     def __iter__(self):
-        return itertools.chain(*map(iter, self.contexts))
-
-    def __repr__(self):  # pragma: no cover
-        return "ContextView(contexts=" + repr(self.contexts) + ")"
+        seen = set()
+        for context in self.contexts:
+            for key in context:
+                if key not in seen:
+                    seen.add(key)
+                    yield key
