@@ -1,13 +1,13 @@
-.. image:: https://img.shields.io/travis/numberoverzero/bottom/master.svg?style=flat-square
-    :target: https://travis-ci.org/numberoverzero/bottom
-.. image:: https://img.shields.io/coveralls/numberoverzero/bottom/master.svg?style=flat-square
-    :target: https://coveralls.io/github/numberoverzero/bottom
-.. image:: https://img.shields.io/pypi/v/bottom.svg?style=flat-square
-    :target: https://pypi.python.org/pypi/bottom
-.. image:: https://img.shields.io/github/issues-raw/numberoverzero/bottom.svg?style=flat-square
-    :target: https://github.com/numberoverzero/bottom/issues
-.. image:: https://img.shields.io/pypi/l/bottom.svg?style=flat-square
-    :target: https://github.com/numberoverzero/bottom/blob/master/LICENSE
+.. image:: https://img.shields.io/travis/numberoverzero/texas/master.svg?style=flat-square
+    :target: https://travis-ci.org/numberoverzero/texas
+.. image:: https://img.shields.io/coveralls/numberoverzero/texas/master.svg?style=flat-square
+    :target: https://coveralls.io/github/numberoverzero/texas
+.. image:: https://img.shields.io/pypi/v/texas.svg?style=flat-square
+    :target: https://pypi.python.org/pypi/texas
+.. image:: https://img.shields.io/github/issues-raw/numberoverzero/texas.svg?style=flat-square
+    :target: https://github.com/numberoverzero/texas/issues
+.. image:: https://img.shields.io/pypi/l/texas.svg?style=flat-square
+    :target: https://github.com/numberoverzero/texas/blob/master/LICENSE
 
 Pure python.  Path keys.  ChainedMap on steroids.
 
@@ -43,6 +43,22 @@ Quick Start
 
     # Doesn't change the underlying environment root
     environment["src.root"]  # ~/pics
+
+    # Doesn't change environment, changes what config finds
+    del config["src.root"]
+    config["src.root"]  # ~/pics
+
+
+    # Snapshot the contexts into a single dict for use in other modules
+    # (like jinja, for templating)
+    import pprint
+    pprint.pprint(config.snapshot)
+    # {
+    #     "src": {
+    #         "root": "~/pics",
+    #         "type": "jpg"
+    #     }
+    # }
 
 Usage
 =====
@@ -150,6 +166,76 @@ From an existing ContextView, it's also possible to create a new view
     child_view = parent_view.context.include("child1, child2")
 
     # child view has the contexts ["child1", "child2"]
+
+Snapshot
+--------
+
+Context does some heavy lifting to make paths and multiple dicts work together
+comfortably.  Unfortunately, this doesn't work with code that converts the
+ContextView into a dict.
+
+Merging dicts in general is a complex problem at best, with many ambiguities.
+To simplify things, (check out texas/merger.py to see the "simple" case) the
+following rules are used::
+
+    (1) For every key in each context, the top-most[0] context that contains
+        that key will determine if the value will be used directly, or merged
+        with other contexts.
+    (2) If that value is a collections.abc.Mapping, the value of that key in
+        each context that contains that key will be merged.
+        (A) If there is a context with that key whose value is NOT a mapping,
+            its value will be ignored.
+        (B) If that value is NOT a collections.abc.Mapping, the value will be
+            used directly and no merging occurs[1].
+    3) These rules are applied recursively[2] for any nested mappings.
+
+The "top-most context that contains that key" is not always the top context.
+In the following, the bottom context is the only one that contains the key
+"bottom"::
+
+    {
+        "bottom": "bottom-value"
+    },
+    {
+        "top": "top-value"
+    }
+
+    Snapshot:
+
+    {
+        "bottom": "bottom-value",
+        "top": "top-value"
+    }
+
+When there is a conflict in type (mapping, non-mapping) the top-most context
+determines the type.  For example, this will take the mapping values from
+bottom and top, but not middle (whose value is not a mapping)::
+
+    {
+        "key": {
+            "bottom": "bottom-value"
+        }
+    },
+    {
+        "key": ["middle", "non", "mapping"]
+    },
+    {
+        "key": {
+            "top": "top-value"
+        }
+    }
+
+    Snapshot:
+
+    {
+        "key": {
+            "bottom": "bottom-value",
+            "top": "top-value"
+        }
+    }
+
+While snapshot applies its rules recursively to mappings, the implementation is
+not recursive.  See texas/merger.py for details.
 
 Current
 -------
