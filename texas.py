@@ -1,5 +1,5 @@
 import collections.abc
-__version__ = "0.3"
+__version__ = "0.2"
 
 MISSING = object()
 DEFAULT_PATH_SEPARATOR = "."
@@ -31,14 +31,14 @@ def create_on_missing(factory):
     return on_missing
 
 
-def default_context_factory():
+def default_context_factory(path_separator):
     """
     By default, Context creates a PathDict for each context.
 
     Each of those PathDicts will use regular dicts for storage.
     """
     return lambda: PathDict(path_factory=dict,
-                            path_separator=DEFAULT_PATH_SEPARATOR)
+                            path_separator=path_separator)
 
 
 def traverse(root, path, sep, on_missing=raise_on_missing):
@@ -71,7 +71,7 @@ class PathDict(collections.abc.MutableMapping):
         path_separator (Optional[str]):
             string that separates each segment of
             a path.  Defaults to "."
-        path_factory (Callable[[], collections.abc.MutableMapping]):
+        path_factory (Optional(Callable[[], collections.abc.MutableMapping])):
             no-arg function that returns an object that implements the
             mapping interface.  Used to fill missing segments when
             setting values.  Defaults to dict.
@@ -139,8 +139,50 @@ class PathDict(collections.abc.MutableMapping):
 
 
 class Context:
-    def __init__(self, factory=None):
-        self._factory = factory or default_context_factory()
+    """
+    Namespaced dicts.
+
+    Create views that include multiple dicts to fall back when getting keys.
+    By default, uses PathDict for easily looking up nested values.
+
+    Usage:
+
+        context = Context(path_separator=".")
+        root = context.include("root")
+        # Missing segments automatically creatd
+        root["foo.bar"] = "baz"
+        assert root["foo"]["bar"] == "baz"
+
+        # Use as a context manager
+        with context.include("other") as other:
+            other["key"] = "value"
+
+        # Inspect multiple contexts at once
+        with context.include("root", "other") as both:
+            assert both["foo.bar"] == "baz"
+            assert both["key"] == "value"
+
+            both["only.in.other"] = "both_value"
+
+        # Context names are unique - same "other" as above
+        other = context.include("other")
+
+        # Sets only apply in the top-most context
+        assert "only.in.other" not in root
+        assert other["only.in.other"] == "both_value"
+    """
+    def __init__(self, factory=None, path_separator=DEFAULT_PATH_SEPARATOR):
+        """
+        Args:
+            factory (Optional(Callable[[], collections.abc.MutableMapping])):
+                no-arg function that returns an object that implements the
+                mapping interface.  Used to fill missing segments when
+                setting values.  Defaults to PathDict.
+            path-separator (Optional(str)):
+                When factory is missing, this is the path separator passed to
+                the PathDict constructor when instantiating new contexts.
+        """
+        self._factory = factory or default_context_factory(path_separator)
         self._contexts = self._factory()
 
     def _get_context(self, name):
