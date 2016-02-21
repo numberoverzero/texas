@@ -131,6 +131,58 @@ def test_view_include(context):
     assert layer["root_key"] == "root_value"
 
 
+def test_snapshot(context):
+    """
+    snapshot merges all contexts together for use in other modules.
+    """
+    context.include("bottom").update(**{
+        "shared": {
+            "same": "bottom"
+        },
+        "bottom-only": "bo-value",
+        "multi-mix": {
+            "bottom": "mmb-value"
+        }
+    })
+    context.include("middle").update(**{
+        "shared": {
+            "same": "middle",
+            "sm-key": {
+                "smk-key": "smk-value"
+            }
+        },
+        "multi-mix": "mmm-value"
+    })
+    context.include("top").update(**{
+        "shared": {
+            "added": "top"
+        },
+        "top-only": {
+            "to-key": "to-value"
+        },
+        "multi-mix": {
+            "top": "mmt-value"
+        }
+    })
+
+    expected = {
+        "bottom-only": "bo-value",
+        "shared": {
+            "same": "middle",
+            "sm-key": {"smk-key": "smk-value"},
+            "added": "top"
+        },
+        "top-only": {"to-key": "to-value"},
+        "multi-mix": {
+            "top": "mmt-value",
+            "bottom": "mmb-value"
+        }
+    }
+    contexts = context.include("bottom", "middle", "top")
+    assert contexts.snapshot == expected
+    assert len(contexts) == 4
+
+
 def test_custom_factory():
     path_dicts_created = 0
     contexts_created = 0

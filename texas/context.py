@@ -2,6 +2,7 @@ import collections.abc
 import itertools
 
 from .traversal import traverse, raise_on_missing, create_on_missing
+from .merger import merge
 
 MISSING = object()
 DEFAULT_PATH_SEPARATOR = "."
@@ -168,6 +169,10 @@ class ContextView(collections.abc.MutableMapping):
     @property
     def current(self):
         return self.contexts[-1]
+
+    @property
+    def snapshot(self):
+        return {key: merge(dict, self.contexts, key) for key in self}
 
     def include(self, *names):
         return self.context.include(*names, contexts=self.contexts)
