@@ -98,27 +98,27 @@ class PathDict(collections.abc.MutableMapping):
         self.update(*args, **kwargs)
 
     def __setitem__(self, path, value):
-        node, key = traverse(self, path, sep=self._sep,
-                             on_missing=self._create_on_missing)
-        if node is self:
-            self._data[key] = value
+        if self._sep not in path:
+            self._data[path] = value
         else:
+            node, key = traverse(self, path, sep=self._sep,
+                                 on_missing=self._create_on_missing)
             node[key] = value
 
     def __getitem__(self, path):
-        node, key = traverse(self, path, sep=self._sep,
-                             on_missing=raise_on_missing)
-        if node is self:
-            return self._data[key]
+        if self._sep not in path:
+            return self._data[path]
         else:
+            node, key = traverse(self, path, sep=self._sep,
+                                 on_missing=raise_on_missing)
             return node[key]
 
     def __delitem__(self, path):
-        node, key = traverse(self, path, sep=self._sep,
-                             on_missing=raise_on_missing)
-        if node is self:
-            del self._data[key]
+        if self._sep not in path:
+            del self._data[path]
         else:
+            node, key = traverse(self, path, sep=self._sep,
+                                 on_missing=raise_on_missing)
             del node[key]
 
     def __iter__(self):
