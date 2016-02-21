@@ -1,5 +1,5 @@
 import pytest
-from texas import traverse, raise_on_missing, create_on_missing
+from texas.traversal import traverse, raise_on_missing, create_on_missing
 
 
 def test_traverse_raises():

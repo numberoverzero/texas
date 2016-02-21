@@ -1,13 +1,13 @@
 """ Setup file """
 import os
-from setuptools import setup
+from setuptools import setup, find_packages
 
 HERE = os.path.abspath(os.path.dirname(__file__))
 README = open(os.path.join(HERE, 'README.rst')).read()
 
 
 def get_version():
-    with open("texas.py") as f:
+    with open("texas/__init__.py") as f:
         for line in f:
             if line.startswith("__version__"):
                 return eval(line.split("=")[-1])
@@ -44,7 +44,7 @@ if __name__ == "__main__":
         keywords='dict nested context',
         platforms='any',
         include_package_data=True,
-        py_modules=["texas"],
+        packages=find_packages(exclude=("tests")),
         install_requires=REQUIREMENTS,
         tests_require=REQUIREMENTS + TEST_REQUIREMENTS,
     )

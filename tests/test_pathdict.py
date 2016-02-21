@@ -1,5 +1,5 @@
 import pytest
-from texas import PathDict
+from texas.context import PathDict
 
 
 @pytest.fixture
@@ -120,3 +120,9 @@ def test_init_args(base, more):
     d = PathDict(base, **more)
     assert d["root.foo.last"] == "value"
     assert d["more.leaf"] == "value"
+
+
+def test_as_dict(d, base):
+    d.update(base)
+    assert dict(d) == base
+    assert len(d) == len(base)

@@ -1,5 +1,5 @@
 import pytest
-from texas import Context, PathDict
+from texas.context import Context, PathDict
 
 
 @pytest.fixture
@@ -83,15 +83,40 @@ def test_layered_paths(context):
 
 
 def test_view_iteration(context):
-    """iteration and length use top of ContextView only"""
-    context.include("bottom")["bottom"] = "bottom"
+    """iteration and length use all contexts"""
+    context.include("bottom")["bottom_key"] = "bottom_value"
     context.include("top")["top_key"] = "top_value"
     both = context.include("bottom", "top")
 
-    # Even though it's visible, not included in iter and len
-    assert both["bottom"] == "bottom"
-    assert list(both.items()) == [("top_key", "top_value")]
-    assert len(both) == 1
+    expected_dict = {
+        "top_key": "top_value",
+        "bottom_key": "bottom_value"
+    }
+    assert dict(both) == expected_dict
+
+
+def test_view_iteration_overlap(context):
+    """
+    When iterating a view, overlapping keys take the top context value.
+
+    This means nested dicts get blown away.
+    """
+    context.include("bottom")["key.nested.dicts"] = "bottom_value"
+    context.include("top")["key.also.nested"] = "top_value"
+    both = context.include("bottom", "top")
+
+    expected_dict = {
+        "key": {
+            "also": {
+                "nested": "top_value"
+            }
+            # note that {"nested": {"dicts": "bottom_value"}}
+            # is not present.  dict(both) iterates the keys, instead of
+            # iterating the items.
+        }
+    }
+    assert dict(both) == expected_dict
+    assert dict(**both) == expected_dict
 
 
 def test_view_include(context):
