@@ -3,207 +3,107 @@ from texas import Context, PathDict
 
 
 @pytest.fixture
-def ctx():
+def context():
     return Context()
 
 
-def test_invalid_root():
-    with pytest.raises(ValueError):
-        Context(ctx_separator="!", ctx_reserved_prefix="_!_")
+def test_get(context):
+    root = context.include("root")
+    layer = context.include("layer")
+    both = context.include("root", "layer")
+
+    root["root_key"] = "root_value"
+    layer["layer_key"] = "layer_value"
+    both["both_key"] = "both_value"
+
+    assert root["root_key"] == "root_value"
+    assert "layer_key" not in root
+    assert "both_key" not in root
+
+    assert "root_key" not in layer
+    assert layer["layer_key"] == "layer_value"
+    assert layer["both_key"] == "both_value"
+
+    assert both["root_key"] == "root_value"
+    assert both["layer_key"] == "layer_value"
+    assert both["both_key"] == "both_value"
 
 
-def test_init_values():
-    base = {
-        "a": "b",
-        "c": {
-            "d": "e"
-        }
-    }
-    context = Context(**base)
-    assert context["a"] == "b"
-    assert context["c.d"] == "e"
+def test_del(context):
+    root = context.include("root")
+    both = root.include("layer")
 
-
-def test_init_prefixed_raises():
-    base = {
-        "cannot": "use",
-        "_": "prefixed",
-        "_keys": "."
-    }
-    with pytest.raises(KeyError):
-        Context(**base)
-
-
-def test_root(ctx):
-    assert ctx.g is ctx.current
-
-    ctx["a"] = "b"
-    assert ctx["a"] == "b"
+    root["root_key"] = "root_value"
 
     with pytest.raises(KeyError):
-        ctx.pop_context()
+        del both["root_key"]
+
+    assert "root_key" in both
+    del root["root_key"]
+    assert "root_key" not in both
 
 
-def test_fallthrough(ctx):
-    ctx["root_key"] = "root_value"
+def test_unique_names(context):
+    layer = context.include("layer")
+    also_layer = context.include("layer")
 
-    ctx.push_context("layer")
-    ctx["layer_key"] = "layer_value"
-
-    # Both keys accessible
-    assert ctx["root_key"] == "root_value"
-    assert ctx["layer_key"] == "layer_value"
-
-    # Deletes only act on current context
-    with pytest.raises(KeyError):
-        del ctx["root_key"]
-
-    # Can't access layer_key anymore
-    ctx.pop_context()
-    assert ctx["root_key"] == "root_value"
-    assert "layer_key" not in ctx
+    layer["foo.bar"] = "baz"
+    assert also_layer["foo.bar"] == "baz"
 
 
-def test_pop_name(ctx):
-    ctx.push_context("layer1")
-    # Success - this is the current context
-    ctx.pop_context(name="layer1")
+def test_path_contexts(context):
+    """By default, paths in context names create nested dicts"""
+    root = context.include("root")
+    root_nested = context.include("root.nested")
 
-    ctx.push_context("layer2")
-    ctx.push_context("layer3")
-
-    # Validation fails, layer2 isn't the current context
-    with pytest.raises(KeyError):
-        ctx.pop_context(name="layer2")
-
-    # pop unknown context with validation
-    with pytest.raises(KeyError):
-        ctx.pop_context(name="unknown")
+    # .include returns a ContextView, not the underlying PathDict
+    assert root["nested"] is not root_nested
+    # .current returns the PathDict
+    assert root["nested"] is root_nested.current
 
 
-def test_root_protection(ctx):
-    with pytest.raises(KeyError):
-        ctx["_.no.access"]
+def test_layered_paths(context):
+    """include a sub-context and its parent context in the same view"""
+    parent = context.include("parent")
+    child = context.include("parent.child")
+    both = context.include("parent", "parent.child")
 
-    with pytest.raises(KeyError):
-        del ctx["_"]
+    parent["child.by_parent"] = "set_by_parent"
+    child["by_child"] = "set_by_child"
 
-    with pytest.raises(KeyError):
-        ctx["_"] = "not allowed"
+    # "by_child" in the child context
+    # "child.by_child" in the parent context (fallthrough)
+    assert both["by_child"] == "set_by_child"
+    assert both["child.by_child"] == "set_by_child"
 
-
-def test_unique(ctx):
-    """context names are unique"""
-
-    ctx.push_context("layer1")
-    ctx["foo.bar"] = "baz"
-
-    ctx.pop_context()
-    assert "foo.bar" not in ctx
-
-    ctx.push_context("layer1")
-    assert ctx["foo.bar"] == "baz"
+    # "by_parent" in the child context
+    # "child.by_parent" in the parent context (fallthrough)
+    assert both["by_parent"] == "set_by_parent"
+    assert both["child.by_parent"] == "set_by_parent"
 
 
-def test_current_only(ctx):
-    """iteration and length are over current context only"""
-    ctx["some.root.key"] = "root_value"
+def test_view_iteration(context):
+    """iteration and length use top of ContextView only"""
+    context.include("bottom")["bottom"] = "bottom"
+    context.include("top")["top_key"] = "top_value"
+    both = context.include("bottom", "top")
 
-    ctx.push_context("layer1")
-    ctx["layer_key"] = "layer_value"
-
-    # len, iter look at ctx.current only
-    assert len(ctx) == 1
-    assert list(ctx.items()) == [("layer_key", "layer_value")]
-
-
-def test_manager_nesting(ctx):
-    ctx["root_key"] = "root_value"
-    with ctx("layer1"):
-        ctx["layer1_key"] = "layer1_value"
-        with ctx("layer2"):
-            ctx["layer2_key"] = "layer2_value"
-            assert "root_key" in ctx
-            assert "layer1_key" in ctx
-            assert "layer2_key" in ctx
-        # Lost layer2
-        assert "root_key" in ctx
-        assert "layer1_key" in ctx
-        assert "layer2_key" not in ctx
-    # Lost layer1, layer2
-    assert "root_key" in ctx
-    assert "layer1_key" not in ctx
-    assert "layer2_key" not in ctx
+    # Even though it's visible, not included in iter and len
+    assert both["bottom"] == "bottom"
+    assert list(both.items()) == [("top_key", "top_value")]
+    assert len(both) == 1
 
 
-def test_manager_names(ctx):
-    with ctx("layer1"):
-        ctx["layer1_key"] = "layer1_value"
+def test_view_include(context):
+    """
+    include returns a new ContextView with any additional contexts
+    on top of the existing ContextView's.
+    """
+    root = context.include("root")
+    root["root_key"] = "root_value"
 
-    with ctx("layer1", "layer2"):
-        ctx["layer2_key"] = "layer2_value"
-        assert ctx["layer1_key"] == "layer1_value"
-
-    with ctx("layer1"):
-        assert "layer2_key" not in ctx
-
-    with ctx("layer2"):
-        assert ctx["layer2_key"] == "layer2_value"
-
-
-def test_manager_cleanup(ctx):
-    try:
-        with ctx("layer"):
-            ctx["should.not.be"] = "accessible"
-            raise RuntimeError()
-    except RuntimeError:
-        pass
-
-    assert "should.not.be" not in ctx
-
-
-def test_contextual_path_resolution(ctx):
-    """pathed set only touches current context"""
-    some_level = dict()
-    ctx["some.level"] = some_level
-
-    ctx.push_context("layer1")
-    ctx["some.level.thing"] = "value"
-    ctx.pop_context()
-
-    assert not some_level
-
-
-def test_contextual_protection_limit(ctx):
-    """modification to mutable values in lower contexts are persisted"""
-    some_level = dict()
-    ctx["some.level"] = some_level
-
-    ctx.push_context("layer1")
-    ctx["some.level"]["thing"] = "value"
-    ctx.pop_context()
-
-    # not empty - the ["some.level"] is a get, which passes through.
-    # then it's a normal set on ["thing"]
-    assert some_level == {"thing": "value"}
-
-
-def test_root_access(ctx):
-    """can modify internal storage through .g"""
-    layer1 = ctx.push_context("layer1")
-
-    assert ctx.g["_.g"] is ctx.g
-    assert ctx.g["_.current"] is layer1
-    assert ctx.g["_.contexts.layer1"] is layer1
-
-
-def test_current_fallthrough(ctx):
-    """current doesn't fall through"""
-    ctx["root_key"] = "root_value"
-
-    ctx.push_context("layer1")
-    current = ctx.current
-    assert "root_key" not in current
+    layer = root.include("layer")
+    assert layer["root_key"] == "root_value"
 
 
 def test_custom_factory():
@@ -211,7 +111,6 @@ def test_custom_factory():
     contexts_created = 0
 
     def expect(contexts, path_dicts):
-        print(dict(ctx))
         assert contexts_created == contexts
         assert path_dicts_created == path_dicts
 
@@ -225,32 +124,19 @@ def test_custom_factory():
         contexts_created += 1
         return PathDict(path_factory=path_factory)
 
-    ctx = Context(ctx_factory=context_factory)
-    # "g" | "_"
-    expect(1, 1)
+    context = Context(factory=context_factory)
+    # contexts |
+    expect(1, 0)
 
-    with ctx("layer1"):
-        pass
-    # "g", "layer1" | "_", "_.contexts"
+    context.include("layer")
+    # contexts, "layer" |
+    expect(2, 0)
+
+    context.include("layer")["foo.bar.baz"] = "blah"
+    # contexts, "layer" | "foo", "foo.bar"
     expect(2, 2)
 
-    ctx["foo.bar.baz"] = "blah"
-    # "g", "layer1" | "_", "_.contexts", "foo", "foo.bar"
-    expect(2, 4)
-
-    with ctx("layer1"):
-        pass
+    with context.include("layer") as same_layer:
+        same_layer["foo.bar.another"] = "value"
     # existing context, nothing created
-    expect(2, 4)
-
-
-def test_init_args(base, more):
-    d = Context(base)
-    assert d["root.foo.last"] == "value"
-
-    d = Context(**base)
-    assert d["root.foo.last"] == "value"
-
-    d = Context(base, **more)
-    assert d["root.foo.last"] == "value"
-    assert d["more.leaf"] == "value"
+    expect(2, 2)

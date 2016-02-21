@@ -1,12 +1,8 @@
 import collections.abc
-import contextlib
-__version__ = "0.2"
+__version__ = "0.3"
 
 MISSING = object()
-ILLEGAL_PREFIX = ValueError(
-    "reserved_prefix cannot contain the path separator.")
-CANNOT_MODIFY_ROOT = KeyError(
-    "Cannot modify the root object by direct prefix.  Use context.g instead.")
+DEFAULT_PATH_SEPARATOR = "."
 
 
 def raise_on_missing(sep, visited, **kwargs):
@@ -35,16 +31,17 @@ def create_on_missing(factory):
     return on_missing
 
 
-def default_context_factory(separator):
+def default_context_factory():
     """
     By default, Context creates a PathDict for each context.
 
     Each of those PathDicts will use regular dicts for storage.
     """
-    return lambda: PathDict(path_factory=dict, path_separator=separator)
+    return lambda: PathDict(path_factory=dict,
+                            path_separator=DEFAULT_PATH_SEPARATOR)
 
 
-def traverse(root, path, sep=".", on_missing=raise_on_missing):
+def traverse(root, path, sep, on_missing=raise_on_missing):
     """
     Returns a (node, key) of the last node in the chain and its key.
 
@@ -91,7 +88,10 @@ class PathDict(collections.abc.MutableMapping):
         {'bloop': ['.gitignore'], 'texas': ['tox.ini', '.travis.yml']}
 
     """
-    def __init__(self, *args, path_separator=".", path_factory=dict, **kwargs):
+    def __init__(self, *args,
+                 path_separator=DEFAULT_PATH_SEPARATOR,
+                 path_factory=dict,
+                 **kwargs):
         self._sep = path_separator
         self._data = {}
         self._create_on_missing = create_on_missing(path_factory)
@@ -127,107 +127,57 @@ class PathDict(collections.abc.MutableMapping):
     def __len__(self):
         return len(self._data)
 
+    def __repr__(self):  # pragma: no cover
+        return "PathDict(" + repr(dict(self)) + ")"
 
-class Context(collections.abc.MutableMapping):
-    def __init__(self,
-                 *args,
-                 ctx_separator=".",
-                 ctx_reserved_prefix="_",
-                 ctx_factory=None,
-                 **kwargs):
-        if ctx_separator in ctx_reserved_prefix:
-            raise ILLEGAL_PREFIX
-        self._sep = ctx_separator
-        self._pre = ctx_reserved_prefix
-        self._factory = ctx_factory or default_context_factory(ctx_separator)
 
-        root = self._factory()
-        self._dicts = [root]
-        # Initial set uses path so all levels are PathDicts
-        root[self._pre + self._sep + "g"] = root
-        root[self._pre + self._sep + "current"] = root
+class Context:
+    def __init__(self, factory=None):
+        self._factory = factory or default_context_factory()
+        self._contexts = self._factory()
 
-        self.update(*args, **kwargs)
+    def _get_context(self, name):
+        try:
+            return self._contexts[name]
+        except KeyError:
+            context = self._contexts[name] = self._factory()
+            return context
 
-    @property
-    def g(self):
-        """root dict, permanently store values"""
-        return self._dicts[0]
+    def include(self, *names, contexts=None):
+        contexts = list(contexts) if (contexts is not None) else []
+        contexts.extend(self._get_context(name) for name in names)
+        return ContextView(self, contexts)
+
+
+class ContextView(collections.abc.MutableMapping):
+    def __init__(self, context, contexts):
+        self.contexts = contexts
+        self.context = context
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *args):
+        pass
 
     @property
     def current(self):
-        return self._dicts[-1]
+        return self.contexts[-1]
 
-    @contextlib.contextmanager
-    def __call__(self, *names):
-        """
-        Usage
-        -----
-        ctx = Context(".", "_")
-        with ctx("local") as local:
-            local["foo"] = "bar"
-            local.g["hello.world"] = "!"
-
-        assert "foo" not in ctx
-        assert ctx["hello"]["world"] == "!"
-        assert ctx["_.ctx.local.foo"] == "bar"
-        """
-        for name in names:
-            self.push_context(name)
-        try:
-            yield self
-        finally:
-            for name in reversed(names):
-                self.pop_context(name=name)
-
-    def get_context(self, name, create=True):
-        """
-        Return (optionally create) a context.
-
-        Does not modify the context stack.
-        """
-        context_path = self._sep.join((self._pre, "contexts", name))
-        context = self.g.get(context_path, MISSING)
-        if context is MISSING:
-            if not create:
-                raise KeyError("Unknown context {}".format(name))
-            context = self.g[context_path] = self._factory()
-        return context
-
-    def push_context(self, name):
-        local = self.get_context(name, create=True)
-        self.g[self._pre]["current"] = local
-        self._dicts.append(local)
-        return local
-
-    def pop_context(self, *, name=MISSING):
-        if len(self._dicts) == 1:
-            raise KeyError("Can't pop root context")
-        # When name is provided, validate before popping.
-        # Raises KeyError when the requested pop isn't current
-        if name is not MISSING:
-            if self.get_context(name, create=False) is not self.current:
-                raise KeyError("{} is not the current context".format(name))
-        old_local = self._dicts.pop()
-        self.g[self._pre]["current"] = self._dicts[-1]
-        return old_local
-
-    def __setitem__(self, path, value):
-        # Disallow modifying the root by accident
-        if path.startswith(self._pre) and (self.current is self.g):
-            raise CANNOT_MODIFY_ROOT
-        self.current[path] = value
+    def include(self, *names):
+        return self.context.include(*names, contexts=self.contexts)
 
     def __getitem__(self, path):
-        for ctx in reversed(self._dicts):
-            value = ctx.get(path, MISSING)
+        for context in reversed(self.contexts):
+            value = context.get(path, MISSING)
             if value is not MISSING:
                 return value
         raise KeyError(path)
 
+    def __setitem__(self, path, value):
+        self.current[path] = value
+
     def __delitem__(self, path):
-        if path.startswith(self._pre) and (self.current is self.g):
-            raise CANNOT_MODIFY_ROOT
         del self.current[path]
 
     def __len__(self):
