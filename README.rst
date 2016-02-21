@@ -18,93 +18,191 @@ Installation
 
     pip install texas
 
-Usage
-=====
+Quick Start
+===========
 
-Contexts are python dictionaries with path lookups::
+::
 
     import texas
 
     context = texas.Context()
 
+    environment = context.include("environment")
+    cli = context.include("cli")
+
+    config = context.include("environment", "cli")
+
+    environment["src.root"] = "~/pics"
+    cli["src.type"] = "jpg"
+
+    config["src.root"]  # ~/pics
+    config["src.type"]  # jpg
+
+    # Change current configuration's root
+    config["src.root"] = "~/other"
+
+    # Doesn't change the underlying environment root
+    environment["src.root"]  # ~/pics
+
+Usage
+=====
+
+Contexts are namespaced python dictionaries with (configurable) path lookups::
+
+    import texas
+
+    context = texas.Context()
+    # Single context
+    root = context.include("root")
+
     # normal dictionary operations
-    context["foo"] = "bar"
-    assert "bar" == context["foo"]
-    del context["foo"]
+    root["foo"] = "bar"
+    assert "bar" == root["foo"]
+    del root["foo"]
 
     # paths
-    context["foo.bar"] = "baz"
-    assert "baz" == context["foo.bar"]
-    del context["foo.bar"]
+    root["foo.bar"] = "baz"
+    assert "baz" == root["foo.bar"]
+    del root["foo.bar"]
 
-    # length, iteration
-    n = 10
-    context.update((i, i+1) for i in range(n))
-    assert len(context) == n
+Include
+-------
 
-    for key, value in context.items():
-        assert key + 1 == value
+Include takes a variable number of context names to load into a view::
 
+    bottom = context.include("bottom")
+    top = context.include("top")
 
-But they also track contextual changes::
+    both = context.include("bottom", "top")
 
-    ctx = texas.Context()
-    ctx["root.layer.key"] = "root_value"
+This can be used to create a priority when looking up values.  The top of the
+context stack will be checked for a key first, then the next, until a context
+with the given key is found::
 
-    with ctx("layer1"):
-        # read through
-        assert "root_value" == ctx["root.layer.key"]
-        # local to layer1
-        ctx["layer1.key"] = "layer1_value"
+    bottom["key"] = "bottom"
+    assert both["key"] == "bottom"
 
-    # layer1 not active
-    assert "layer1.key" not in ctx
+    top["key"] = "top"
+    assert both["key"] == "top"
 
-    # manually push layer1 back on
-    ctx.push_context("layer1")
-    assert "layer1_value" == ctx["layer1.key"]
-    ctx.pop_context()
+Combined with paths, this can be very powerful for configuration management::
 
-Access specific contexts::
+    context = texas.Context()
+    env = context.include("env")
+    cli = context.include("cli")
+    config = context.include("env", "cli")
 
-    # current context
-    # access variables ONLY in the current context (no fall through)
-    ctx = texas.Context()
-    ctx["root_key"] = "root_value"
+    env["src.root"] = "~/pics"
+    cli["src.type"] = "jpg"
 
-    ctx.push_context("layer1")
-    assert "root_key" not in ctx.current
+    assert config["src.root"] == "~/pics"
+    assert config["src.type"] == "jpg"
 
-    # global context
-    # WARNING: be careful in the reserved area of the global root,
-    # as you can break the context tracking.
-    assert ctx.g is ctx.g["_.root"]
-    assert ctx.g is ctx.g["_.current"]
+Note that this doesn't work with individual path segments::
 
-    # all contexts are available from the root node
-    assert "layer1" in ctx.g["_.contexts"]
-    assert "layer1.key" in ctx.g["_.contexts.layer1"]
-    assert "layer1_value" == ctx.g["_.contexts.layer1.layer1.key"]
+    # KeyError - "src" is found in the cli context,
+    # which doesn't have a value for "type"
+    config["src"]["type"]
 
-    # nesting:
-    ctx["root_key"] = "root_value"
+This is because the ContextView delegates the resolution of the entire path to
+each context, instead of trying to resolve each segment within each context.
 
-    with ctx("layer1"):
-        ctx["layer1_key"] = "layer1_value"
+Setting values only applies to the top context in the view, so the value in
+bottom is still the same::
 
-        with ctx("layer2"):
-            ctx["layer2_key"] = "layer2_value"
+    assert bottom["key"] == "bottom"
 
-            assert "root_key" in ctx
-            assert "layer1_key" in ctx
-            assert "layer2_key" in ctx
+This breaks down with mutable values - for instance, this will modify the list
+in the bottom context:
 
-        # Lost layer2
-        assert "root_key" in ctx
-        assert "layer1_key" in ctx
-        assert "layer2_key" not in ctx
+    context = texas.Context()
+    bottom = context.include("bottom")
+    top = context.include("top")
+    both = context.include("bottom", "top")
 
-    # Lost layer1, layer2
-    assert "root_key" in ctx
-    assert "layer1_key" not in ctx
-    assert "layer2_key" not in ctx
+    bottom["list"] = []
+    top["list"].append("modified!")
+
+    assert bottom["list"] == ["modified!"]
+
+Nesting Includes
+----------------
+
+Creating a new ContextView from an existing ContextView will ensure all the
+contexts in the original are also in the new::
+
+    context = texas.Context()
+
+    parent_view = context.include("parent1, parent2")
+    child_view = parent_view.include("child1, child2")
+
+    # parent view has the contexts ["parent1", "parent2"]
+    # child view has the contexts ["parent1", "parent2", "child1", "child2"]
+
+From an existing ContextView, it's also possible to create a new view
+**without** the current contexts::
+
+    config = texas.Context()
+
+    parent_view = config.include("parent1, parent2")
+
+    # parent_view.context refers to `config`
+    child_view = parent_view.context.include("child1, child2")
+
+    # child view has the contexts ["child1", "child2"]
+
+Current
+-------
+
+To get the top-most context in a ContextView, use ``current``::
+
+    config = texas.Context()
+    env = context.include("env")
+    cli = context.include("cli")
+    config = context.include("env", "cli")
+
+    env["key"] = "env"
+
+    # config falls through cli to env to find "key"
+    assert "key" in config
+
+    # Only look at the top context for config
+    cli_only = config.current
+    assert "key" not in cli_only
+
+    assert config.current is cli.current
+
+Context Factory
+---------------
+
+To use PathDict with a different separator, pass ``path_separator``::
+
+    context = texas.Context(path_separator="-")
+
+To use ``dict`` instead of ``PathDict`` for contexts, pass a factory::
+
+    context = texas.Context(factory=dict)
+
+Any no-arg function that returns a ``collections.abc.MutableMapping`` is fine::
+
+    import arrow
+    context_id = 0
+
+    def create_context():
+        nonlocal context_id
+        context_id += 1
+
+        base_data = {
+            "created": arrow.now(),
+            "id": context_id
+        }
+
+        # Normal dict interface, including *args/**kwargs init
+        return texas.PathDict(base_data, path_separator=".")
+
+    context = texas.Context(factory=create_context)
+
+    # First context will have id 2 since texas.Context
+    # uses an instance from the factory for its storage
+    root = context.include("root")
+    root["id"]  # 2
