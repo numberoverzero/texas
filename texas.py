@@ -1,5 +1,5 @@
 import collections.abc
-__version__ = "0.2"
+__version__ = "0.2.1"
 
 MISSING = object()
 DEFAULT_PATH_SEPARATOR = "."
@@ -197,6 +197,9 @@ class Context:
         contexts.extend(self._get_context(name) for name in names)
         return ContextView(self, contexts)
 
+    def __repr__(self):  # pragma: no cover
+        return "Context(contexts=" + repr(self._contexts) + ")"
+
 
 class ContextView(collections.abc.MutableMapping):
     def __init__(self, context, contexts):
@@ -234,3 +237,6 @@ class ContextView(collections.abc.MutableMapping):
 
     def __iter__(self):
         return iter(self.current)
+
+    def __repr__(self):  # pragma: no cover
+        return "ContextView(contexts=" + repr(self.contexts) + ")"
