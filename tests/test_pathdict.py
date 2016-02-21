@@ -11,40 +11,81 @@ def test_get_missing(d):
     with pytest.raises(KeyError):
         d["foo"]
 
+    # Fail on first segment of the path
+    with pytest.raises(KeyError) as excinfo:
+        d["foo.bar.baz"]
+    exception = excinfo.value
+    assert exception.args == ("foo", )
 
-def test_get_missing_path(d):
+    d["foo.bar.other"] = "something"
+
+    # Fail on last segment, with full path in KeyError
+    with pytest.raises(KeyError) as excinfo:
+        d["foo.bar.baz"]
+    exception = excinfo.value
+    assert exception.args == ("foo.bar.baz", )
+
+
+def test_del_missing(d):
     with pytest.raises(KeyError):
+        del d["foo"]
+
+    # Fail on first segment of the path
+    with pytest.raises(KeyError) as excinfo:
+        del d["foo.bar.baz"]
+    exception = excinfo.value
+    assert exception.args == ("foo", )
+
+    d["foo.bar.other"] = "something"
+
+    # Fail on last segment, with full path in KeyError
+    with pytest.raises(KeyError) as excinfo:
+        del d["foo.bar.baz"]
+    exception = excinfo.value
+    assert exception.args == ("foo.bar.baz", )
+
+
+def test_not_a_path(d):
+    """
+    PathDict doesn't ensure that each segment is a MutableMapping before
+    trying to walk the full path
+    """
+    d["foo.bar"] = "Value"
+    with pytest.raises(TypeError):
         d["foo.bar.baz"]
 
 
-def test_set(d):
+def test_basics(d):
     d["foo"] = "bar"
     assert d["foo"] == "bar"
+    del d["foo"]
+    assert "foo" not in d
 
 
 def test_set_path_missing(d):
+    """Intermediate dicts created by default"""
     d["foo.bar.baz"] = "blah"
     assert d["foo"]["bar"]["baz"] == "blah"
     assert d["foo.bar.baz"] == "blah"
 
 
-def test_collapse_empty_path_segments(d):
-    path = "a..b.c"
-    d[path] = "3 deep"
+def test_empty_segments(d):
+    """Empty path segments aren't special cased"""
+    d["a..b.c"] = "4 deep"
+
     assert len(d["a"]) == 1
-    assert len(d["a"]["b"]) == 1
-    assert d["a"]["b"]["c"] == "3 deep"
-
-
-def test_delete_missing(d):
-    with pytest.raises(KeyError):
-        del d["foo"]
+    assert len(d["a"][""]) == 1
+    assert len(d["a"][""]["b"]) == 1
+    assert d["a"][""]["b"]["c"] == "4 deep"
 
 
 def test_delete_path(d):
     d["foo.bar.baz"] = "blah"
     del d["foo.bar.baz"]
+
     assert "baz" not in d["foo.bar"]
+    # Empty segments along the path aren't removed
+    assert "bar" in d["foo"]
 
 
 def test_contains(d):

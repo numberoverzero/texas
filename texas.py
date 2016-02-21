@@ -53,9 +53,6 @@ def traverse(root, path, sep, on_missing=raise_on_missing):
     node = root
     *segments, last = path.split(sep)
     for segment in segments:
-        # Skip empty segments - collapse "foo..bar.baz" into "foo.bar.baz"
-        if not segment:
-            continue
         visited.append(segment)
         child = node.get(segment, MISSING)
         if child is MISSING:
@@ -111,7 +108,12 @@ class PathDict(collections.abc.MutableMapping):
         else:
             node, key = traverse(self, path, sep=self._sep,
                                  on_missing=raise_on_missing)
-            return node[key]
+            try:
+                return node[key]
+            except KeyError:
+                # Not raised by traverse above, since it doesn't
+                # walk the last segment
+                raise KeyError(path)
 
     def __delitem__(self, path):
         if self._sep not in path:
@@ -119,7 +121,12 @@ class PathDict(collections.abc.MutableMapping):
         else:
             node, key = traverse(self, path, sep=self._sep,
                                  on_missing=raise_on_missing)
-            del node[key]
+            try:
+                del node[key]
+            except KeyError:
+                # Not raised by traverse above, since it doesn't
+                # walk the last segment
+                raise KeyError(path)
 
     def __iter__(self):
         return iter(self._data)
