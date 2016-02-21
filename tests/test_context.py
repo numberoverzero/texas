@@ -133,7 +133,7 @@ def test_view_include(context):
 
 def test_snapshot(context):
     """
-    snapshot merges all contexts together for use in other modules.
+    snapshot merges all contexts into a single dict.
     """
     context.include("bottom").update(**{
         "shared": {

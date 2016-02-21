@@ -1,5 +1,5 @@
 import pytest
-from texas.context import PathDict
+from texas.path import PathDict
 
 
 @pytest.fixture
