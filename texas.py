@@ -91,9 +91,6 @@ class PathDict(collections.abc.MutableMapping):
         {'bloop': ['.gitignore'], 'texas': ['tox.ini', '.travis.yml']}
 
     """
-    _sep = None
-    _create_on_missing = None
-
     def __init__(self, *args, path_separator=".", path_factory=dict, **kwargs):
         self._sep = path_separator
         self._data = {}
@@ -132,11 +129,6 @@ class PathDict(collections.abc.MutableMapping):
 
 
 class Context(collections.abc.MutableMapping):
-    _sep = None
-    _pre = None
-    _dicts = None
-    _factory = None
-
     def __init__(self,
                  *args,
                  ctx_separator=".",
