@@ -5,10 +5,6 @@ def is_mapping(value):
     return isinstance(value, collections.abc.Mapping)
 
 
-def should_merge(values):
-    return is_mapping(values[-1])
-
-
 def filter_values(values, path):
     for value in values:
         try:
@@ -17,7 +13,17 @@ def filter_values(values, path):
             continue
 
 
-def filter_mappings(values):
-    for value in values:
+def filter_mappings(values, path):
+    for value in filter_values(values, path):
         if is_mapping(value):
             yield value
+
+
+def top_value(values, path):
+    """top-most value at path, that's not missing"""
+    for value in reversed(values):
+        try:
+            return value[path]
+        except KeyError:
+            continue
+    raise KeyError(path)

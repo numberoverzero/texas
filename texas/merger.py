@@ -79,7 +79,7 @@ VALUE CONFLICT mapping/scalar/mapping: merge mappings, drop scalar
     }
     --> {"bottom": "bottom", "conflict": "top", "top": "top"}
 """
-from .util import should_merge, filter_values, filter_mappings
+from .util import filter_mappings, top_value, is_mapping
 
 
 class Resolver:
@@ -102,21 +102,28 @@ class Resolver:
         self.path = path
 
     def resolve(self):
-        values = list(filter_values(self.containers, self.path))
-        if not values:
+
+        try:
+            top = top_value(self.containers, self.path)
+        except KeyError:
+            # Not found, nothing to resolve
             return
 
         # Scalar - simply return top value.
         # Nothing to push onto the unresolved stack, since
         # this is immediately resolved.
-        if not should_merge(values):
-            self.output[self.path] = values[-1]
+        if not is_mapping(top):
+            self.output[self.path] = top
             return
 
         # From here on, we're merging mappings.
         # First, let's drop all the non-mapping values, since they're
         # incompatible with the top context's type.
-        values = list(filter_mappings(values))
+        values = list(filter_mappings(self.containers, self.path))
+
+        # There are no nested mappings, so we're done resolving.
+        if not values:
+            return
 
         # Aside from the new output container, we won't actually
         # store any new output values.  Instead, we'll push new
