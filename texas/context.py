@@ -1,7 +1,8 @@
 import collections.abc
 
 from .merger import merge
-from .path import PathDict, DEFAULT_PATH_SEPARATOR
+from .path import PathDict
+from .traversal import DEFAULT_SEPARATOR
 MISSING = object()
 
 
@@ -48,7 +49,7 @@ class Context:
         assert "only.in.other" not in root
         assert other["only.in.other"] == "both_value"
     """
-    def __init__(self, factory=None, path_separator=DEFAULT_PATH_SEPARATOR):
+    def __init__(self, factory=None, path_separator=DEFAULT_SEPARATOR):
         """
         Args:
             factory (Optional(Callable[[], collections.abc.MutableMapping])):
@@ -79,9 +80,10 @@ class Context:
 
 
 class ContextView(collections.abc.MutableMapping):
-    def __init__(self, context, contexts):
+    def __init__(self, context, contexts, path=None):
         self.contexts = contexts
         self.context = context
+        self.path = path or []
 
     def __enter__(self):
         return self

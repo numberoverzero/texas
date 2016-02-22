@@ -1,7 +1,8 @@
 MISSING = object()
+DEFAULT_SEPARATOR = "."
 
 
-def raise_on_missing(sep):
+def raise_on_missing(sep=DEFAULT_SEPARATOR):
     def on_missing(visited, **kwargs):
         """Raise the full path of the missing key"""
         raise KeyError(sep.join(visited))
@@ -36,7 +37,7 @@ def traverse(root, path, on_missing=None):
     on_missing: func that takes (node, key, visited, sep) and returns a
                 new value for the missing key or raises.
     """
-    on_missing = on_missing or raise_on_missing(".")
+    on_missing = on_missing or raise_on_missing()
     visited = []
     node = root
     *segments, last = path
