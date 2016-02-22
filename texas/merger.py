@@ -79,29 +79,7 @@ VALUE CONFLICT mapping/scalar/mapping: merge mappings, drop scalar
     }
     --> {"bottom": "bottom", "conflict": "top", "top": "top"}
 """
-import collections.abc
-import enum
-
-
-class MergeType(enum.Enum):
-    Scalar = 0
-    Mapping = 1
-
-    @classmethod
-    def resolve(cls, values):
-        decider = values[-1]
-        if isinstance(decider, collections.abc.Mapping):
-            return cls.Mapping
-        return cls.Scalar
-
-
-def get_values(containers, path):
-    """Only returns values from containers that have the 'path' key"""
-    return [c[path] for c in containers if path in c]
-
-
-def get_mappings(values):
-    return [v for v in values if isinstance(v, collections.abc.Mapping)]
+from .util import should_merge, filter_values, filter_mappings
 
 
 class Resolver:
@@ -124,22 +102,21 @@ class Resolver:
         self.path = path
 
     def resolve(self):
-        values = get_values(self.containers, self.path)
+        values = list(filter_values(self.containers, self.path))
         if not values:
             return
-        merge_type = MergeType.resolve(values)
 
         # Scalar - simply return top value.
         # Nothing to push onto the unresolved stack, since
         # this is immediately resolved.
-        if merge_type is MergeType.Scalar:
+        if not should_merge(values):
             self.output[self.path] = values[-1]
             return
 
         # From here on, we're merging mappings.
         # First, let's drop all the non-mapping values, since they're
         # incompatible with the top context's type.
-        values = get_mappings(values)
+        values = list(filter_mappings(values))
 
         # Aside from the new output container, we won't actually
         # store any new output values.  Instead, we'll push new
