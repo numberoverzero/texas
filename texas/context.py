@@ -88,10 +88,6 @@ class ContextView(collections.abc.MutableMapping):
         pass
 
     @property
-    def current(self):
-        return self.contexts[-1]
-
-    @property
     def snapshot(self):
         snapshot = {}
         for key, value in self.items():
@@ -124,10 +120,10 @@ class ContextView(collections.abc.MutableMapping):
         return ContextView(self.root, self.contexts, path)
 
     def __setitem__(self, path, value):
-        self.current[path] = value
+        self.contexts[-1][path] = value
 
     def __delitem__(self, path):
-        del self.current[path]
+        del self.contexts[-1][path]
 
     def __len__(self):
         # Avoid creating an intermediate set/list

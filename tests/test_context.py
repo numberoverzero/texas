@@ -53,13 +53,12 @@ def test_unique_names(context):
 
 def test_path_contexts(context):
     """By default, paths in context names create nested dicts"""
-    root = context.include("root")
-    root_nested = context.include("root.nested")
+    layer = context.include("layer")
+    layer_nested = context.include("layer.nested")
 
     # .include returns a ContextView, not the underlying PathDict
-    assert root["nested"] is not root_nested
-    # .current returns the PathDict
-    assert context.contexts["root.nested"] is root_nested.current
+    assert layer["nested"] is not layer_nested
+    assert context.contexts["layer.nested"] is layer_nested.contexts[-1]
 
 
 def test_layered_paths(context):
