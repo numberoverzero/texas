@@ -59,7 +59,7 @@ def test_path_contexts(context):
     # .include returns a ContextView, not the underlying PathDict
     assert root["nested"] is not root_nested
     # .current returns the PathDict
-    assert root["nested"] is root_nested.current
+    assert context.contexts["root.nested"] is root_nested.current
 
 
 def test_layered_paths(context):
@@ -95,11 +95,10 @@ def test_view_iteration(context):
     assert dict(both) == expected_dict
 
 
-def test_view_iteration_overlap(context):
+def test_view_overlap_mapping(context):
     """
-    When iterating a view, overlapping keys take the top context value.
-
-    This means nested dicts get blown away.
+    When iterating a view, overlapping keys are available if the
+    top context's value is a mapping.
     """
     context.include("bottom")["key.nested.dicts"] = "bottom_value"
     context.include("top")["key.also.nested"] = "top_value"
@@ -109,13 +108,18 @@ def test_view_iteration_overlap(context):
         "key": {
             "also": {
                 "nested": "top_value"
+            },
+            "nested": {
+                "dicts": "bottom_value"
             }
-            # note that {"nested": {"dicts": "bottom_value"}}
-            # is not present.  dict(both) iterates the keys, instead of
-            # iterating the items.
         }
     }
-    assert dict(both) == expected_dict
+    # Not 100% a dict, since the nested dict is still a ContextView
+    partial_dict = dict(both)
+    assert partial_dict["key"]["also"]["nested"] == "top_value"
+    assert partial_dict["key"]["nested"]["dicts"] == "bottom_value"
+    # The kwargs constructor however will happily unroll everything into an
+    # actual dict
     assert dict(**both) == expected_dict
 
 

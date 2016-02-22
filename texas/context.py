@@ -1,9 +1,10 @@
 import collections.abc
 import functools
 
-from .merger import merge
 from .path import PathDict
 from .traversal import DEFAULT_SEPARATOR
+from . import util
+
 MISSING = object()
 
 
@@ -71,7 +72,7 @@ class Context:
         return ContextView(self, contexts)
 
     def __repr__(self):  # pragma: no cover
-        return "Context(contexts=" + repr(self._contexts) + ")"
+        return "Context(contexts=" + repr(self.contexts) + ")"
 
 
 class ContextView(collections.abc.MutableMapping):
@@ -92,17 +93,35 @@ class ContextView(collections.abc.MutableMapping):
 
     @property
     def snapshot(self):
-        return {key: merge(dict, self.contexts, key) for key in self}
+        snapshot = {}
+        for key, value in self.items():
+            # Resolve proxies
+            if isinstance(value, ContextView):
+                value = value.snapshot
+            snapshot[key] = value
+        return snapshot
 
     def include(self, *names):
         return self.root.include(*names, contexts=self.contexts)
 
+    def full_path(self, path):
+        if not self.path:
+            return path
+        return self.path + self.root.separator + path
+
     def __getitem__(self, path):
-        for context in reversed(self.contexts):
-            value = context.get(path, MISSING)
-            if value is not MISSING:
-                return value
-        raise KeyError(path)
+        path = self.full_path(path)
+
+        # Raises KeyError if there is no context with the given path
+        top = util.top_value(self.contexts, path)
+
+        # Since the value of the first context containing the path wasn't
+        # a mapping, return that value directly
+        if not util.is_mapping(top):
+            return top
+
+        # Return another ContextView, with a longer path (one mapping deeper)
+        return ContextView(self.root, self.contexts, path)
 
     def __setitem__(self, path, value):
         self.current[path] = value
@@ -117,6 +136,14 @@ class ContextView(collections.abc.MutableMapping):
     def __iter__(self):
         seen = set()
         for context in self.contexts:
+            if self.path:
+                # Resolve path down to current nesting
+                context = context.get(self.path, {})
+            # The value of context[path] isn't necessarily a mapping, so it
+            # shouldn't always yield keys.  It could be another iterable like
+            # str, which would do Bad Things.
+            if not util.is_mapping(context):
+                continue
             for key in context:
                 if key not in seen:
                     seen.add(key)
