@@ -1,5 +1,5 @@
 import pytest
-from texas.context import Context, PathDict
+from texas.context import Context
 
 
 @pytest.fixture
@@ -183,37 +183,9 @@ def test_snapshot(context):
     assert len(contexts) == 4
 
 
-def test_custom_factory():
-    path_dicts_created = 0
-    contexts_created = 0
-
-    def expect(contexts, path_dicts):
-        assert contexts_created == contexts
-        assert path_dicts_created == path_dicts
-
-    def path_factory():
-        nonlocal path_dicts_created
-        path_dicts_created += 1
-        return dict()
-
-    def context_factory():
-        nonlocal contexts_created
-        contexts_created += 1
-        return PathDict(path_factory=path_factory)
-
-    context = Context(factory=context_factory)
-    # contexts |
-    expect(1, 0)
-
-    context.include("layer")
-    # contexts, "layer" |
-    expect(2, 0)
-
-    context.include("layer")["foo.bar.baz"] = "blah"
-    # contexts, "layer" | "foo", "foo.bar"
-    expect(2, 2)
-
-    with context.include("layer") as same_layer:
-        same_layer["foo.bar.another"] = "value"
-    # existing context, nothing created
-    expect(2, 2)
+def test_contextmanager(context):
+    path = "foo.bar.baz"
+    with context.include("bottom", "top") as both:
+        both[path] = "blah"
+    assert path not in context.include("bottom")
+    assert context.include("top")[path] == "blah"

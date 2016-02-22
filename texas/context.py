@@ -6,7 +6,7 @@ from .traversal import DEFAULT_SEPARATOR
 MISSING = object()
 
 
-def default_context_factory(path_separator):
+def context_factory(path_separator):
     """
     By default, Context creates a PathDict for each context.
 
@@ -49,18 +49,14 @@ class Context:
         assert "only.in.other" not in root
         assert other["only.in.other"] == "both_value"
     """
-    def __init__(self, factory=None, path_separator=DEFAULT_SEPARATOR):
+    def __init__(self, path_separator=DEFAULT_SEPARATOR):
         """
         Args:
-            factory (Optional(Callable[[], collections.abc.MutableMapping])):
-                no-arg function that returns an object that implements the
-                mapping interface.  Used to fill missing segments when
-                setting values.  Defaults to PathDict.
             path-separator (Optional(str)):
-                When factory is missing, this is the path separator passed to
-                the PathDict constructor when instantiating new contexts.
+                This is the path separator passed to the PathDict
+                constructor when instantiating new contexts.  Defaults to "."
         """
-        self._factory = factory or default_context_factory(path_separator)
+        self._factory = context_factory(path_separator)
         self._contexts = self._factory()
 
     def _get_context(self, name):
