@@ -137,32 +137,6 @@ in the bottom context:
 
     assert bottom["list"] == ["modified!"]
 
-Nesting Includes
-----------------
-
-Creating a new ContextView from an existing ContextView will ensure all the
-contexts in the original are also in the new::
-
-    context = texas.Context()
-
-    parent_view = context.include("parent1, parent2")
-    child_view = parent_view.include("child1, child2")
-
-    # parent view has the contexts ["parent1", "parent2"]
-    # child view has the contexts ["parent1", "parent2", "child1", "child2"]
-
-From an existing ContextView, it's also possible to create a new view
-**without** the current contexts::
-
-    config = texas.Context()
-
-    parent_view = config.include("parent1, parent2")
-
-    # parent_view.context refers to `config`
-    child_view = parent_view.context.include("child1, child2")
-
-    # child view has the contexts ["child1", "child2"]
-
 Snapshot
 --------
 
@@ -241,54 +215,40 @@ not recursive.  A sample file that merges arbitrary iterables of mappings using
 the same rules as texas is available
 `here <https://gist.github.com/numberoverzero/90a36aef936e6dd5a6c4#file-merge-py>`_.
 
-Context Factory
----------------
+Internals
+---------
 
-To use PathDict with a different separator, pass ``path_separator``::
+Internally, all data is stored in python dicts.  You can inspect the global
+state of a context through its ``contexts`` attribute::
 
-    context = texas.Context(path_separator="-")
-
-You can modify the mapping instance used within a PathDict::
-
-    context = texas.Context(path_factory=collections.OrderedDict)
-
-Any no-arg function that returns a ``collections.abc.MutableMapping`` is fine::
-
-    import arrow
-    import pprint
     import texas
+    context = texas.Context()
 
-    context_id = 0
+    context.include("root.something.or.foo")
+    context.include("bar", "and.yet.another.foo", "finally")
 
-    def create_context():
-        global context_id
-        context_id += 1
+    print(context.contexts)
 
-        return {
-            "created": arrow.now(),
-            "id": context_id
-        }
+Path traversal is performed by the ``traverse`` function, which only handles
+traversal of ``collestions.abc.Mapping``.  Therefore, when a non-mapping value
+is expected at the end of a path, the path should be split like so::
 
-    context = texas.Context(path_factory=create_context)
+    full_path = "foo.bar.baz"
+    path, last = full_path.rsplit(".", 1)
 
-    root = context.include("root")
-    root["a.b.c.d"] = "value"
-    pprint.pprint(root.snapshot)
+    assert path == "foo.bar"
+    assert last = "baz"
 
-    """
-    {
-      'a': {
-        'id': 1,
-        'created': <Arrow [...]>,
-        'b': {
-          'id': 2,
-          'created': <Arrow [...]>,
-          'c': {
-            'id': 3,
-            'created': <Arrow [...]>,
-            'd': 'value',
-          },
-        },
-      }
-    }
-    """
+This allows us to travers a root and create the intermediate ``foo`` and
+``bar`` dicts without modifying or inspecting ``baz``::
+
+    from texas.traversal import traverse, create_on_missing
+
+    root = dict()
+    full_path = "foo.bar.baz"
+    path, key = full_path.rsplit(".", 1)
+
+    node = traverse(root, path, ".", create_on_missing(dict))
+    node[key] = "value"
+
+    assert root["foo"]["bar"]["baz"] == "value"
