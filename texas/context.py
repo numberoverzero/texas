@@ -1,19 +1,10 @@
 import collections.abc
+import functools
 
 from .merger import merge
 from .path import PathDict
 from .traversal import DEFAULT_SEPARATOR
 MISSING = object()
-
-
-def context_factory(path_separator):
-    """
-    By default, Context creates a PathDict for each context.
-
-    Each of those PathDicts will use regular dicts for storage.
-    """
-    return lambda: PathDict(path_factory=dict,
-                            path_separator=path_separator)
 
 
 class Context:
@@ -49,26 +40,34 @@ class Context:
         assert "only.in.other" not in root
         assert other["only.in.other"] == "both_value"
     """
-    def __init__(self, path_separator=DEFAULT_SEPARATOR):
+    def __init__(self, path_factory=dict, path_separator=DEFAULT_SEPARATOR):
         """
         Args:
-            path-separator (Optional(str)):
+            path_factory (Optional(Callable[[],
+                          collections.abc.MutableMapping])):
+                no-arg function that returns an object that implements the
+                mapping interface.  Used to fill missing segments when
+                setting values.  Defaults to dict.
+            path_separator (Optional(str)):
                 This is the path separator passed to the PathDict
                 constructor when instantiating new contexts.  Defaults to "."
         """
-        self._factory = context_factory(path_separator)
-        self._contexts = self._factory()
+        self.separator = path_separator
+        self.factory = functools.partial(PathDict,
+                                         path_factory=path_factory,
+                                         path_separator=path_separator)
+        self.contexts = self.factory()
 
-    def _get_context(self, name):
+    def get_context(self, name):
         try:
-            return self._contexts[name]
+            return self.contexts[name]
         except KeyError:
-            context = self._contexts[name] = self._factory()
+            context = self.contexts[name] = self.factory()
             return context
 
     def include(self, *names, contexts=None):
         contexts = list(contexts) if (contexts is not None) else []
-        contexts.extend(self._get_context(name) for name in names)
+        contexts.extend(self.get_context(name) for name in names)
         return ContextView(self, contexts)
 
     def __repr__(self):  # pragma: no cover

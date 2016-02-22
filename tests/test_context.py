@@ -189,3 +189,27 @@ def test_contextmanager(context):
         both[path] = "blah"
     assert path not in context.include("bottom")
     assert context.include("top")[path] == "blah"
+
+
+def test_custom_factory():
+    path_dicts_created = 0
+
+    def expect(path_dicts):
+        assert path_dicts_created == path_dicts
+
+    def path_factory():
+        nonlocal path_dicts_created
+        path_dicts_created += 1
+        return dict()
+
+    # root context doesn't use path's factory
+    context = Context(path_factory=path_factory)
+    expect(0)
+
+    # contexts don't use path's factory
+    context.include("layer")
+    expect(0)
+
+    # "foo", "foo.bar"
+    context.include("layer")["foo.bar.baz"] = "blah"
+    expect(2)
