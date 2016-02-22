@@ -1,8 +1,8 @@
 import collections.abc
-import functools
 
-from .path import PathDict
-from .traversal import DEFAULT_SEPARATOR
+from .traversal import (
+    traverse, first_value,
+    raise_on_missing, create_on_missing)
 from . import util
 
 MISSING = object()
@@ -41,41 +41,34 @@ class Context:
         assert "only.in.other" not in root
         assert other["only.in.other"] == "both_value"
     """
-    def __init__(self, path_factory=dict, path_separator=DEFAULT_SEPARATOR):
+    def __init__(self, path_separator="."):
         """
         Args:
-            path_factory (Optional(Callable[[],
-                          collections.abc.MutableMapping])):
-                no-arg function that returns an object that implements the
-                mapping interface.  Used to fill missing segments when
-                setting values.  Defaults to dict.
             path_separator (Optional(str)):
                 This is the path separator passed to the PathDict
                 constructor when instantiating new contexts.  Defaults to "."
         """
         self.separator = path_separator
-        self.factory = functools.partial(PathDict,
-                                         path_factory=path_factory,
-                                         path_separator=path_separator)
-        self.contexts = self.factory()
+        self.contexts = dict()
+        self.create = create_on_missing(dict)
 
-    def get_context(self, name):
-        try:
-            return self.contexts[name]
-        except KeyError:
-            context = self.contexts[name] = self.factory()
-            return context
+    def get_context(self, path, root=None, create=True):
+        if root is None:
+            root = self.contexts
+        on_missing = self.create if create else raise_on_missing
+        return traverse(root, path, self.separator, on_missing)
 
-    def include(self, *names, contexts=None):
-        contexts = list(contexts) if (contexts is not None) else []
-        contexts.extend(self.get_context(name) for name in names)
+    def include(self, *names):
+        if not names:
+            raise ValueError("Must include at least one context")
+        contexts = list(self.get_context(name) for name in names)
         return ContextView(self, contexts)
 
 
 class ContextView(collections.abc.MutableMapping):
     def __init__(self, root, contexts, path=""):
-        self.contexts = contexts
         self.root = root
+        self.contexts = contexts
         self.path = path
 
     def __enter__(self):
@@ -94,33 +87,44 @@ class ContextView(collections.abc.MutableMapping):
             snapshot[key] = value
         return snapshot
 
-    def include(self, *names):
-        return self.root.include(*names, contexts=self.contexts)
-
-    def full_path(self, path):
+    def absolute_path(self, path):
         if not self.path:
             return path
         return self.path + self.root.separator + path
 
     def __getitem__(self, path):
-        path = self.full_path(path)
+        # Get uses absolute paths, since it has to
+        # walk each context from its root node.
+        path = self.absolute_path(path)
 
         # Raises KeyError if there is no context with the given path
-        top = util.top_value(self.contexts, path)
+        first = first_value(self.contexts, path, self.root.separator)
 
         # Since the value of the first context containing the path wasn't
         # a mapping, return that value directly
-        if not util.is_mapping(top):
-            return top
+        if not util.is_mapping(first):
+            return first
 
         # Return another ContextView, with a longer path (one mapping deeper)
         return ContextView(self.root, self.contexts, path)
 
     def __setitem__(self, path, value):
-        self.contexts[-1][path] = value
+        context = self.contexts[-1]
+        if self.root.separator in path:
+            path, last = path.rsplit(self.root.separator, 1)
+            # Returns the node that "last": value should go in
+            context = self.root.get_context(path, root=context, create=True)
+            path = last
+        context[path] = value
 
     def __delitem__(self, path):
-        del self.contexts[-1][path]
+        context = self.contexts[-1]
+        if self.root.separator in path:
+            path, last = path.rsplit(self.root.separator, 1)
+            # Returns the node that "last" should be deleted from
+            context = self.root.get_context(path, root=context, create=False)
+            path = last
+        del context[path]
 
     def __len__(self):
         # Avoid creating an intermediate set/list
@@ -131,7 +135,13 @@ class ContextView(collections.abc.MutableMapping):
         for context in self.contexts:
             if self.path:
                 # Resolve path down to current nesting
-                context = context.get(self.path, {})
+                try:
+                    context = self.root.get_context(
+                        self.path, root=context, create=False)
+                except (KeyError, TypeError):
+                    # KeyError - no mapping in this context
+                    # TypeError - non-mapping value along this context's path
+                    context = None
             # The value of context[path] isn't necessarily a mapping, so it
             # shouldn't always yield keys.  It could be another iterable like
             # str, which would do Bad Things.

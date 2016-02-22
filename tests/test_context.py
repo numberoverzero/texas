@@ -31,7 +31,7 @@ def test_get(context):
 
 def test_del(context):
     root = context.include("root")
-    both = root.include("layer")
+    both = context.include("root", "layer")
 
     root["root_key"] = "root_value"
 
@@ -56,9 +56,13 @@ def test_path_contexts(context):
     layer = context.include("layer")
     layer_nested = context.include("layer.nested")
 
-    # .include returns a ContextView, not the underlying PathDict
+    layer_nested["sentinel"] = "value"
+
+    # .include returns a ContextView, not the underlying dict
     assert layer["nested"] is not layer_nested
-    assert context.contexts["layer.nested"] is layer_nested.contexts[-1]
+    assert context.get_context("layer.nested") is layer_nested.contexts[-1]
+
+    assert layer["nested.sentinel"] == layer_nested["sentinel"]
 
 
 def test_layered_paths(context):
@@ -122,18 +126,6 @@ def test_view_overlap_mapping(context):
     assert dict(**both) == expected_dict
 
 
-def test_view_include(context):
-    """
-    include returns a new ContextView with any additional contexts
-    on top of the existing ContextView's.
-    """
-    root = context.include("root")
-    root["root_key"] = "root_value"
-
-    layer = root.include("layer")
-    assert layer["root_key"] == "root_value"
-
-
 def test_snapshot(context):
     """
     snapshot merges all contexts into a single dict.
@@ -192,27 +184,3 @@ def test_contextmanager(context):
         both[path] = "blah"
     assert path not in context.include("bottom")
     assert context.include("top")[path] == "blah"
-
-
-def test_custom_factory():
-    path_dicts_created = 0
-
-    def expect(path_dicts):
-        assert path_dicts_created == path_dicts
-
-    def path_factory():
-        nonlocal path_dicts_created
-        path_dicts_created += 1
-        return dict()
-
-    # root context doesn't use path's factory
-    context = Context(path_factory=path_factory)
-    expect(0)
-
-    # contexts don't use path's factory
-    context.include("layer")
-    expect(0)
-
-    # "foo", "foo.bar"
-    context.include("layer")["foo.bar.baz"] = "blah"
-    expect(2)

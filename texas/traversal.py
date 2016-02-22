@@ -1,58 +1,69 @@
 from .util import is_mapping
 MISSING = object()
-BAD_PATH = "Expected a mapping but didn't find one for path {}"
-DEFAULT_SEPARATOR = "."
+BAD_PATH = "Expected a mapping in {} at {} but didn't find one"
 
 
-def raise_on_missing(sep=DEFAULT_SEPARATOR):
-    def on_missing(visited, **kwargs):
-        """Raise the full path of the missing key"""
-        raise KeyError(sep.join(visited))
-    return on_missing
+def raise_on_missing(visited, separator, **kwargs):
+    """Raise the full path of the missing key"""
+    raise KeyError(separator.join(visited))
 
 
 def create_on_missing(factory):
-    """
-    Returns a function to pass to traverse to create missing nodes.
-
-    Usage
-    -----
-    # This will insert dicts on missing keys
-    root = {}
-    path = "hello.world.foo.bar"
-    on_missing = create_on_missing(dict)
-    node, last = traverse(root, path, sep=".", on_missing=on_missing)
-    print(root)  # {"hello": {"world": {"foo": {}}}}
-    print(node)  # {}
-    print(last)  # "bar"
-    assert root["hello"]["world"]["foo"] is node
-    """
+    """Returns a traverse function that creates missing nodes."""
     def on_missing(**kwargs):
         return factory()
     return on_missing
 
 
-def traverse(root, path, on_missing=None):
+def traverse(root, path, separator, on_missing):
     """
-    Returns a (node, key) of the last node in the chain and its key.
+    Returns the last node in the path.
 
     on_missing: func that takes (node, key, visited, sep) and returns a
                 new value for the missing key or raises.
     """
-    on_missing = on_missing or raise_on_missing()
     visited = []
     node = root
-    *segments, last = path
-    for segment in segments:
+    for segment in path.split(separator):
         visited.append(segment)
         child = node.get(segment, MISSING)
         # Don't try to follow path into iterables like str
         if child is MISSING:
             # pass by keyword so functions may ignore variables
-            new = on_missing(node=node, key=segment, visited=visited)
+            new = on_missing(node=node, segment=segment, separator=separator,
+                             visited=visited)
             # insert new node if the on_missing function didn't raise
             child = node[segment] = new
         if not is_mapping(child):
-            raise TypeError(BAD_PATH.format(path))
+            raise TypeError(BAD_PATH.format(root, path))
         node = child
-    return [node, last]
+    return node
+
+
+def first_value(values, path, separator):
+    """top-most value at path, that's not missing"""
+    # No need to traverse, just check the immediate value
+    if separator not in path:
+        return _simple_first(values, path)
+
+    # We don't want mapping check on the last lookup,
+    # since context["last"] is likely a non-mapping value
+    path, last = path.rsplit(separator, 1)
+    for value in reversed(values):
+        try:
+            context = traverse(value, path, separator, raise_on_missing)
+            return context[last]
+        except (KeyError, TypeError):
+            # KeyError - no mapping in this context
+            # TypeError - non-mapping value along this context's path
+            continue
+    raise KeyError(path)
+
+
+def _simple_first(values, path):
+    for value in reversed(values):
+        try:
+            return value[path]
+        except KeyError:
+            continue
+    raise KeyError(path)

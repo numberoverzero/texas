@@ -10,28 +10,24 @@ def test_traverse_raises():
         }
     }
     sep = "-"
-    path = "a-b-c-d".split(sep)
-    on_missing = raise_on_missing(sep)
-
+    path = "a-b-c-d"
     with pytest.raises(KeyError):
-        traverse(root, path, on_missing=on_missing)
+        traverse(root, path, sep, on_missing=raise_on_missing)
 
 
 def test_traverse_last_missing():
     """no raise on last element missing"""
-    inner = {}
     root = {
         "a": {
-            "b": inner
+            "b": {
+                "c": {"sentinel": "value"}
+            }
         }
     }
     sep = "-"
-    path = "a-b-c".split(sep)
-    on_missing = raise_on_missing(sep)
-
-    last_node, key = traverse(root, path, on_missing=on_missing)
-    assert last_node is inner
-    assert key == "c"
+    path = "a-b-c"
+    inner = traverse(root, path, sep, on_missing=raise_on_missing)
+    assert inner is root["a"]["b"]["c"]
 
 
 def test_traverse_creates():
@@ -44,11 +40,7 @@ def test_traverse_creates():
 
     root = dict()
     sep = "."
-    path = "a.b.c".split(sep)
-    on_missing = create_on_missing(factory)
-
-    last_node, key = traverse(root, path, on_missing=on_missing)
-    assert created == 2  # a and b
-    assert last_node is root["a"]["b"]
-    assert not last_node  # empty - c is not inserted
-    assert key == "c"
+    path = "a.b.c"
+    inner = traverse(root, path, sep, on_missing=create_on_missing(factory))
+    assert created == 3  # a and b
+    assert root["a"]["b"]["c"] is inner
