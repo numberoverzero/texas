@@ -71,9 +71,6 @@ class Context:
         contexts.extend(self.get_context(name) for name in names)
         return ContextView(self, contexts)
 
-    def __repr__(self):  # pragma: no cover
-        return "Context(contexts=" + repr(self.contexts) + ")"
-
 
 class ContextView(collections.abc.MutableMapping):
     def __init__(self, root, contexts, path=""):
