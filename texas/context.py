@@ -75,10 +75,10 @@ class Context:
 
 
 class ContextView(collections.abc.MutableMapping):
-    def __init__(self, context, contexts, path=None):
+    def __init__(self, root, contexts, path=""):
         self.contexts = contexts
-        self.context = context
-        self.path = path or []
+        self.root = root
+        self.path = path
 
     def __enter__(self):
         return self
@@ -95,7 +95,7 @@ class ContextView(collections.abc.MutableMapping):
         return {key: merge(dict, self.contexts, key) for key in self}
 
     def include(self, *names):
-        return self.context.include(*names, contexts=self.contexts)
+        return self.root.include(*names, contexts=self.contexts)
 
     def __getitem__(self, path):
         for context in reversed(self.contexts):
