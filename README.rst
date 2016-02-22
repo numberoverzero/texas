@@ -38,19 +38,18 @@ Quick Start
     config["src.root"]  # ~/pics
     config["src.type"]  # jpg
 
-    # Change current configuration's root
-    config["src.root"] = "~/other"
+    # Change cli's root
+    cli["src.root"] = "~/other"
 
     # Doesn't change the underlying environment root
     environment["src.root"]  # ~/pics
 
-    # Doesn't change environment, changes what config finds
+    # Modifies cli, which is the top context in config
     del config["src.root"]
     config["src.root"]  # ~/pics
 
-
-    # Snapshot the contexts into a single dict for use in other modules
-    # (like jinja, for templating)
+    # Snapshot the contexts into a single dict for use in modules that
+    # typecheck against dict (instead of collections.abc.Mapping)
     import pprint
     pprint.pprint(config.snapshot)
     # {
@@ -114,14 +113,11 @@ Combined with paths, this can be very powerful for configuration management::
     assert config["src.root"] == "~/pics"
     assert config["src.type"] == "jpg"
 
-Note that this doesn't work with individual path segments::
+This even works with individual path segments, since ContextView returns
+proxies against the underlying mapping objects::
 
-    # KeyError - "src" is found in the cli context,
-    # which doesn't have a value for "type"
-    config["src"]["type"]
-
-This is because the ContextView delegates the resolution of the entire path to
-each context, instead of trying to resolve each segment within each context.
+    config["src"]  # <texas.context.ContextView at ... >
+    config["src"]["type"]  # "jpg"
 
 Setting values only applies to the top context in the view, so the value in
 bottom is still the same::
@@ -171,12 +167,18 @@ Snapshot
 --------
 
 Context does some heavy lifting to make paths and multiple dicts work together
-comfortably.  Unfortunately, this doesn't work with code that converts the
-ContextView into a dict.
+comfortably.  Unfortunately, some libraries make ``isinstance`` checks against
+``dict``, and not ``collections.abc.Mapping``.
+
+This is also useful when passing a ContextView to code that will perform many
+lookups in a tight loop.  Because an intermediate lookup on a deeply nested
+set of dicts creates one proxy per level (ie.
+``something["foo"]["bar"]["baz"]`` creates two proxies for the value
+``something["foo.bar.baz"] = "blah"``) it can be a significant speedup to
+"snapshot" or bake the ContextView for much faster reading.
 
 Merging dicts in general is a complex problem at best, with many ambiguities.
-To simplify things, (check out texas/merger.py to see the "simple" case) the
-following rules are used::
+To simplify things, the following rules are used::
 
     (1) For every key in each context, the top-most[0] context that contains
         that key will determine if the value will be used directly, or merged
@@ -235,28 +237,9 @@ bottom and top, but not middle (whose value is not a mapping)::
     }
 
 While snapshot applies its rules recursively to mappings, the implementation is
-not recursive.  See texas/merger.py for details.
-
-Current
--------
-
-To get the top-most context in a ContextView, use ``current``::
-
-    config = texas.Context()
-    env = context.include("env")
-    cli = context.include("cli")
-    config = context.include("env", "cli")
-
-    env["key"] = "env"
-
-    # config falls through cli to env to find "key"
-    assert "key" in config
-
-    # Only look at the top context for config
-    cli_only = config.current
-    assert "key" not in cli_only
-
-    assert config.current is cli.current
+not recursive.  A sample file that merges arbitrary iterables of mappings using
+the same rules as texas is available
+`here <https://gist.github.com/numberoverzero/90a36aef936e6dd5a6c4#file-merge-py>`_.
 
 Context Factory
 ---------------
@@ -265,30 +248,47 @@ To use PathDict with a different separator, pass ``path_separator``::
 
     context = texas.Context(path_separator="-")
 
-To use ``dict`` instead of ``PathDict`` for contexts, pass a factory::
+You can modify the mapping instance used within a PathDict::
 
-    context = texas.Context(factory=dict)
+    context = texas.Context(path_factory=collections.OrderedDict)
 
 Any no-arg function that returns a ``collections.abc.MutableMapping`` is fine::
 
     import arrow
+    import pprint
+    import texas
+
     context_id = 0
 
     def create_context():
-        nonlocal context_id
+        global context_id
         context_id += 1
 
-        base_data = {
+        return {
             "created": arrow.now(),
             "id": context_id
         }
 
-        # Normal dict interface, including *args/**kwargs init
-        return texas.PathDict(base_data, path_separator=".")
+    context = texas.Context(path_factory=create_context)
 
-    context = texas.Context(factory=create_context)
-
-    # First context will have id 2 since texas.Context
-    # uses an instance from the factory for its storage
     root = context.include("root")
-    root["id"]  # 2
+    root["a.b.c.d"] = "value"
+    pprint.pprint(root.snapshot)
+
+    """
+    {
+      'a': {
+        'id': 1,
+        'created': <Arrow [...]>,
+        'b': {
+          'id': 2,
+          'created': <Arrow [...]>,
+          'c': {
+            'id': 3,
+            'created': <Arrow [...]>,
+            'd': 'value',
+          },
+        },
+      }
+    }
+    """
