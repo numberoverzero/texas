@@ -10,11 +10,11 @@ def test_traverse_raises():
         }
     }
     sep = "-"
-    path = "a-b-c-d"
-    on_missing = raise_on_missing
+    path = "a-b-c-d".split(sep)
+    on_missing = raise_on_missing(sep)
 
     with pytest.raises(KeyError):
-        traverse(root, path, sep=sep, on_missing=on_missing)
+        traverse(root, path, on_missing=on_missing)
 
 
 def test_traverse_last_missing():
@@ -26,10 +26,10 @@ def test_traverse_last_missing():
         }
     }
     sep = "-"
-    path = "a-b-c"
-    on_missing = raise_on_missing
+    path = "a-b-c".split(sep)
+    on_missing = raise_on_missing(sep)
 
-    last_node, key = traverse(root, path, sep=sep, on_missing=on_missing)
+    last_node, key = traverse(root, path, on_missing=on_missing)
     assert last_node is inner
     assert key == "c"
 
@@ -44,10 +44,10 @@ def test_traverse_creates():
 
     root = dict()
     sep = "."
-    path = "a.b.c"
+    path = "a.b.c".split(sep)
     on_missing = create_on_missing(factory)
 
-    last_node, key = traverse(root, path, sep=sep, on_missing=on_missing)
+    last_node, key = traverse(root, path, on_missing=on_missing)
     assert created == 2  # a and b
     assert last_node is root["a"]["b"]
     assert not last_node  # empty - c is not inserted

@@ -1,9 +1,11 @@
 MISSING = object()
 
 
-def raise_on_missing(sep, visited, **kwargs):
-    """Raise the full path of the missing key"""
-    raise KeyError(sep.join(visited))
+def raise_on_missing(sep):
+    def on_missing(visited, **kwargs):
+        """Raise the full path of the missing key"""
+        raise KeyError(sep.join(visited))
+    return on_missing
 
 
 def create_on_missing(factory):
@@ -27,23 +29,23 @@ def create_on_missing(factory):
     return on_missing
 
 
-def traverse(root, path, sep, on_missing=raise_on_missing):
+def traverse(root, path, on_missing=None):
     """
     Returns a (node, key) of the last node in the chain and its key.
 
-    sep: splitting character in the path
     on_missing: func that takes (node, key, visited, sep) and returns a
                 new value for the missing key or raises.
     """
+    on_missing = on_missing or raise_on_missing(".")
     visited = []
     node = root
-    *segments, last = path.split(sep)
+    *segments, last = path
     for segment in segments:
         visited.append(segment)
         child = node.get(segment, MISSING)
         if child is MISSING:
             # pass by keyword so functions may ignore variables
-            new = on_missing(node=node, key=segment, visited=visited, sep=sep)
+            new = on_missing(node=node, key=segment, visited=visited)
             # insert new node if the on_missing function didn't raise
             child = node[segment] = new
         node = child
