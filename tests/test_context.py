@@ -43,6 +43,14 @@ def test_del(context):
     assert "root_key" not in both
 
 
+def test_del_path(context):
+    root = context.include("root")
+    root["foo.bar"] = "value"
+    del root["foo.bar"]
+    assert "foo.bar" not in root
+    assert "bar" not in root["foo"]
+
+
 def test_unique_names(context):
     layer = context.include("layer")
     also_layer = context.include("layer")
@@ -52,7 +60,7 @@ def test_unique_names(context):
 
 
 def test_path_contexts(context):
-    """By default, paths in context names create nested dicts"""
+    """Paths in context names create nested dicts"""
     layer = context.include("layer")
     layer_nested = context.include("layer.nested")
 
@@ -178,9 +186,44 @@ def test_snapshot(context):
     assert len(contexts) == 4
 
 
+def test_snapshot_nested(context):
+    """overlapping contexts snapshot correctly"""
+    parent = context.include("parent")
+    child = context.include("parent.child")
+
+    parent["foo"] = "parent_foo"
+
+    # Even though parent has a "nested" key, this will get blown away
+    # by the child putting its "nested" key (parent[child.nested]) in the
+    # top scope
+    parent["nested"] = "parent_nested"
+    parent["child.nested"] = "parent_child_nested"
+
+    # child_foo will overwrite parent_foo in the outermost scope
+    child["foo"] = "child_foo"
+
+    both = context.include("parent", "parent.child")
+
+    expected = {
+        # child dict from parent, but foo overwritten by child include
+        "child": {
+            "foo": "child_foo",
+            "nested": "parent_child_nested"},
+        # from child include, but nested written by parent.child include
+        "foo": "child_foo",
+        "nested": "parent_child_nested"}
+
+    assert both.snapshot == expected
+
+
 def test_contextmanager(context):
     path = "foo.bar.baz"
     with context.include("bottom", "top") as both:
         both[path] = "blah"
     assert path not in context.include("bottom")
     assert context.include("top")[path] == "blah"
+
+
+def test_empty_includes(context):
+    with pytest.raises(ValueError):
+        context.include()
