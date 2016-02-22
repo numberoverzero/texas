@@ -1,5 +1,5 @@
 import pytest
-from texas.context import Context, PathDict
+from texas.context import Context
 
 
 @pytest.fixture
@@ -53,13 +53,12 @@ def test_unique_names(context):
 
 def test_path_contexts(context):
     """By default, paths in context names create nested dicts"""
-    root = context.include("root")
-    root_nested = context.include("root.nested")
+    layer = context.include("layer")
+    layer_nested = context.include("layer.nested")
 
     # .include returns a ContextView, not the underlying PathDict
-    assert root["nested"] is not root_nested
-    # .current returns the PathDict
-    assert root["nested"] is root_nested.current
+    assert layer["nested"] is not layer_nested
+    assert context.contexts["layer.nested"] is layer_nested.contexts[-1]
 
 
 def test_layered_paths(context):
@@ -95,11 +94,10 @@ def test_view_iteration(context):
     assert dict(both) == expected_dict
 
 
-def test_view_iteration_overlap(context):
+def test_view_overlap_mapping(context):
     """
-    When iterating a view, overlapping keys take the top context value.
-
-    This means nested dicts get blown away.
+    When iterating a view, overlapping keys are available if the
+    top context's value is a mapping.
     """
     context.include("bottom")["key.nested.dicts"] = "bottom_value"
     context.include("top")["key.also.nested"] = "top_value"
@@ -109,13 +107,18 @@ def test_view_iteration_overlap(context):
         "key": {
             "also": {
                 "nested": "top_value"
+            },
+            "nested": {
+                "dicts": "bottom_value"
             }
-            # note that {"nested": {"dicts": "bottom_value"}}
-            # is not present.  dict(both) iterates the keys, instead of
-            # iterating the items.
         }
     }
-    assert dict(both) == expected_dict
+    # Not 100% a dict, since the nested dict is still a ContextView
+    partial_dict = dict(both)
+    assert partial_dict["key"]["also"]["nested"] == "top_value"
+    assert partial_dict["key"]["nested"]["dicts"] == "bottom_value"
+    # The kwargs constructor however will happily unroll everything into an
+    # actual dict
     assert dict(**both) == expected_dict
 
 
@@ -183,12 +186,18 @@ def test_snapshot(context):
     assert len(contexts) == 4
 
 
+def test_contextmanager(context):
+    path = "foo.bar.baz"
+    with context.include("bottom", "top") as both:
+        both[path] = "blah"
+    assert path not in context.include("bottom")
+    assert context.include("top")[path] == "blah"
+
+
 def test_custom_factory():
     path_dicts_created = 0
-    contexts_created = 0
 
-    def expect(contexts, path_dicts):
-        assert contexts_created == contexts
+    def expect(path_dicts):
         assert path_dicts_created == path_dicts
 
     def path_factory():
@@ -196,24 +205,14 @@ def test_custom_factory():
         path_dicts_created += 1
         return dict()
 
-    def context_factory():
-        nonlocal contexts_created
-        contexts_created += 1
-        return PathDict(path_factory=path_factory)
+    # root context doesn't use path's factory
+    context = Context(path_factory=path_factory)
+    expect(0)
 
-    context = Context(factory=context_factory)
-    # contexts |
-    expect(1, 0)
-
+    # contexts don't use path's factory
     context.include("layer")
-    # contexts, "layer" |
-    expect(2, 0)
+    expect(0)
 
+    # "foo", "foo.bar"
     context.include("layer")["foo.bar.baz"] = "blah"
-    # contexts, "layer" | "foo", "foo.bar"
-    expect(2, 2)
-
-    with context.include("layer") as same_layer:
-        same_layer["foo.bar.another"] = "value"
-    # existing context, nothing created
-    expect(2, 2)
+    expect(2)

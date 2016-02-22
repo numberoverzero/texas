@@ -1,7 +1,6 @@
 import collections.abc
 
-from .traversal import traverse, raise_on_missing, create_on_missing
-DEFAULT_PATH_SEPARATOR = "."
+from . import traversal
 
 
 class PathDict(collections.abc.MutableMapping):
@@ -26,29 +25,37 @@ class PathDict(collections.abc.MutableMapping):
 
     """
     def __init__(self, *args,
-                 path_separator=DEFAULT_PATH_SEPARATOR,
+                 path_separator=traversal.DEFAULT_SEPARATOR,
                  path_factory=dict,
                  **kwargs):
         self._sep = path_separator
         self._data = {}
-        self._create_on_missing = create_on_missing(path_factory)
-        self._raise_on_missing = raise_on_missing(path_separator)
+        self._create_on_missing = traversal.create_on_missing(path_factory)
+        self._raise_on_missing = traversal.raise_on_missing(path_separator)
         self.update(*args, **kwargs)
 
     def __setitem__(self, path, value):
         if self._sep not in path:
             self._data[path] = value
         else:
-            node, key = traverse(self, path.split(self._sep),
-                                 on_missing=self._create_on_missing)
+            try:
+                node, key = traversal.traverse(
+                    self, path.split(self._sep),
+                    on_missing=self._create_on_missing)
+            except TypeError:
+                raise KeyError(value)
             node[key] = value
 
     def __getitem__(self, path):
         if self._sep not in path:
             return self._data[path]
         else:
-            node, key = traverse(self, path.split(self._sep),
-                                 on_missing=self._raise_on_missing)
+            try:
+                node, key = traversal.traverse(
+                    self, path.split(self._sep),
+                    on_missing=self._raise_on_missing)
+            except TypeError:
+                raise KeyError(path)
             try:
                 return node[key]
             except KeyError:
@@ -60,8 +67,12 @@ class PathDict(collections.abc.MutableMapping):
         if self._sep not in path:
             del self._data[path]
         else:
-            node, key = traverse(self, path.split(self._sep),
-                                 on_missing=self._raise_on_missing)
+            try:
+                node, key = traversal.traverse(
+                    self, path.split(self._sep),
+                    on_missing=self._raise_on_missing)
+            except TypeError:
+                raise KeyError(path)
             try:
                 del node[key]
             except KeyError:
