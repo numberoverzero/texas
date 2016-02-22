@@ -79,7 +79,32 @@ VALUE CONFLICT mapping/scalar/mapping: merge mappings, drop scalar
     }
     --> {"bottom": "bottom", "conflict": "top", "top": "top"}
 """
-from .util import filter_mappings, top_value, is_mapping
+import collections.abc
+
+
+def is_mapping(value):
+    return isinstance(value, collections.abc.Mapping)
+
+
+def filter_mappings(values, path):
+    for value in values:
+        try:
+            value = value[path]
+        except KeyError:
+            continue
+        if not is_mapping(value):
+            continue
+        yield value
+
+
+def top_value(values, path):
+    """top-most value at path, that's not missing"""
+    for value in reversed(values):
+        try:
+            return value[path]
+        except KeyError:
+            continue
+    raise KeyError(path)
 
 
 class Resolver:
@@ -153,11 +178,11 @@ class Resolver:
             self.path, self.containers)
 
 
-def merge(factory, contexts, path):
+def merge(containers, path, factory=dict):
     unresolved = []
     output = factory()
 
-    root_resolver = Resolver(factory, unresolved, output, contexts, path)
+    root_resolver = Resolver(factory, unresolved, output, containers, path)
     unresolved.append(root_resolver)
 
     while unresolved:
