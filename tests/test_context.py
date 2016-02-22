@@ -68,7 +68,7 @@ def test_path_contexts(context):
 
     # .include returns a ContextView, not the underlying dict
     assert layer["nested"] is not layer_nested
-    assert context.get_context("layer.nested") is layer_nested.contexts[-1]
+    assert context.get_context("layer.nested") is layer_nested._contexts[-1]
 
     assert layer["nested.sentinel"] == layer_nested["sentinel"]
 

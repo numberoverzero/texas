@@ -48,15 +48,15 @@ class Context:
                 This is the path separator passed to the PathDict
                 constructor when instantiating new contexts.  Defaults to "."
         """
-        self.separator = path_separator
-        self.contexts = dict()
-        self.create = create_on_missing(dict)
+        self._separator = path_separator
+        self._contexts = dict()
+        self._create = create_on_missing(dict)
 
     def get_context(self, path, root=None, create=True):
         if root is None:
-            root = self.contexts
-        on_missing = self.create if create else raise_on_missing
-        return traverse(root, path, self.separator, on_missing)
+            root = self._contexts
+        on_missing = self._create if create else raise_on_missing
+        return traverse(root, path, self._separator, on_missing)
 
     def include(self, *names):
         if not names:
@@ -67,9 +67,9 @@ class Context:
 
 class ContextView(collections.abc.MutableMapping):
     def __init__(self, root, contexts, path=""):
-        self.root = root
-        self.contexts = contexts
-        self.path = path
+        self._root = root
+        self._contexts = contexts
+        self._path = path
 
     def __enter__(self):
         return self
@@ -88,9 +88,9 @@ class ContextView(collections.abc.MutableMapping):
         return snapshot
 
     def absolute_path(self, path):
-        if not self.path:
+        if not self._path:
             return path
-        return self.path + self.root.separator + path
+        return self._path + self._root._separator + path
 
     def __getitem__(self, path):
         # Get uses absolute paths, since it has to
@@ -98,7 +98,7 @@ class ContextView(collections.abc.MutableMapping):
         path = self.absolute_path(path)
 
         # Raises KeyError if there is no context with the given path
-        first = first_value(self.contexts, path, self.root.separator)
+        first = first_value(self._contexts, path, self._root._separator)
 
         # Since the value of the first context containing the path wasn't
         # a mapping, return that value directly
@@ -106,23 +106,23 @@ class ContextView(collections.abc.MutableMapping):
             return first
 
         # Return another ContextView, with a longer path (one mapping deeper)
-        return ContextView(self.root, self.contexts, path)
+        return ContextView(self._root, self._contexts, path)
 
     def __setitem__(self, path, value):
-        context = self.contexts[-1]
-        if self.root.separator in path:
-            path, last = path.rsplit(self.root.separator, 1)
+        context = self._contexts[-1]
+        if self._root._separator in path:
+            path, last = path.rsplit(self._root._separator, 1)
             # Returns the node that "last": value should go in
-            context = self.root.get_context(path, root=context, create=True)
+            context = self._root.get_context(path, root=context, create=True)
             path = last
         context[path] = value
 
     def __delitem__(self, path):
-        context = self.contexts[-1]
-        if self.root.separator in path:
-            path, last = path.rsplit(self.root.separator, 1)
+        context = self._contexts[-1]
+        if self._root._separator in path:
+            path, last = path.rsplit(self._root._separator, 1)
             # Returns the node that "last" should be deleted from
-            context = self.root.get_context(path, root=context, create=False)
+            context = self._root.get_context(path, root=context, create=False)
             path = last
         del context[path]
 
@@ -132,12 +132,12 @@ class ContextView(collections.abc.MutableMapping):
 
     def __iter__(self):
         seen = set()
-        for context in self.contexts:
-            if self.path:
+        for context in self._contexts:
+            if self._path:
                 # Resolve path down to current nesting
                 try:
-                    context = self.root.get_context(
-                        self.path, root=context, create=False)
+                    context = self._root.get_context(
+                        self._path, root=context, create=False)
                 except (KeyError, TypeError):
                     # KeyError - no mapping in this context
                     # TypeError - non-mapping value along this context's path

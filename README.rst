@@ -227,7 +227,7 @@ state of a context through its ``contexts`` attribute::
     context.include("root.something.or.foo")
     context.include("bar", "and.yet.another.foo", "finally")
 
-    print(context.contexts)
+    print(context._contexts)
 
 Path traversal is performed by the ``traverse`` function, which only handles
 traversal of ``collestions.abc.Mapping``.  Therefore, when a non-mapping value
