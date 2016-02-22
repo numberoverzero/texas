@@ -47,12 +47,18 @@ def test_del_missing(d):
 
 def test_not_a_path(d):
     """
-    PathDict doesn't ensure that each segment is a MutableMapping before
-    trying to walk the full path
+    PathDict doesn't ensure that each segment is a collections.abc.Mapping
+    before trying to walk the full path
     """
-    d["foo.bar"] = "Value"
-    with pytest.raises(TypeError):
+    d["foo.bar"] = "value"
+    with pytest.raises(KeyError):
         d["foo.bar.baz"]
+
+    with pytest.raises(KeyError):
+        d["foo.bar.baz"] = "blah"
+
+    with pytest.raises(KeyError):
+        del d["foo.bar.baz"]
 
 
 def test_basics(d):

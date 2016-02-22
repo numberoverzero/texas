@@ -38,16 +38,24 @@ class PathDict(collections.abc.MutableMapping):
         if self._sep not in path:
             self._data[path] = value
         else:
-            node, key = traversal.traverse(self, path.split(self._sep),
-                                           on_missing=self._create_on_missing)
+            try:
+                node, key = traversal.traverse(
+                    self, path.split(self._sep),
+                    on_missing=self._create_on_missing)
+            except TypeError:
+                raise KeyError(value)
             node[key] = value
 
     def __getitem__(self, path):
         if self._sep not in path:
             return self._data[path]
         else:
-            node, key = traversal.traverse(self, path.split(self._sep),
-                                           on_missing=self._raise_on_missing)
+            try:
+                node, key = traversal.traverse(
+                    self, path.split(self._sep),
+                    on_missing=self._raise_on_missing)
+            except TypeError:
+                raise KeyError(path)
             try:
                 return node[key]
             except KeyError:
@@ -59,8 +67,12 @@ class PathDict(collections.abc.MutableMapping):
         if self._sep not in path:
             del self._data[path]
         else:
-            node, key = traversal.traverse(self, path.split(self._sep),
-                                           on_missing=self._raise_on_missing)
+            try:
+                node, key = traversal.traverse(
+                    self, path.split(self._sep),
+                    on_missing=self._raise_on_missing)
+            except TypeError:
+                raise KeyError(path)
             try:
                 del node[key]
             except KeyError:
