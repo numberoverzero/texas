@@ -82,7 +82,7 @@ class ContextView(collections.abc.MutableMapping):
 
     @property
     def snapshot(self):
-        snapshot = {}
+        snapshot = self._root._create()
         for key, value in self.items():
             # Resolve proxies
             if isinstance(value, ContextView):
