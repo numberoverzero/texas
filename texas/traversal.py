@@ -3,9 +3,9 @@ MISSING = object()
 BAD_PATH = "Expected a mapping in {} at {} but didn't find one"
 
 
-def raise_on_missing(visited, separator, **kwargs):
+def raise_on_missing(path, **kwargs):
     """Raise the full path of the missing key"""
-    raise KeyError(separator.join(visited))
+    raise KeyError(path)
 
 
 def create_on_missing(factory):
@@ -22,16 +22,14 @@ def traverse(root, path, separator, on_missing):
     on_missing: func that takes (node, key, visited, sep) and returns a
                 new value for the missing key or raises.
     """
-    visited = []
     node = root
     for segment in path.split(separator):
-        visited.append(segment)
         child = node.get(segment, MISSING)
         # Don't try to follow path into iterables like str
         if child is MISSING:
             # pass by keyword so functions may ignore variables
             new = on_missing(node=node, segment=segment, separator=separator,
-                             visited=visited)
+                             path=path)
             # insert new node if the on_missing function didn't raise
             child = node[segment] = new
         if not is_mapping(child):
