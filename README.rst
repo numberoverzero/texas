@@ -215,6 +215,37 @@ not recursive.  A sample file that merges arbitrary iterables of mappings using
 the same rules as texas is available
 `here <https://gist.github.com/numberoverzero/90a36aef936e6dd5a6c4#file-merge-py>`_.
 
+Context Factory
+---------------
+
+By default, texas uses simple ``dict``s for storage.  However, this can be
+customized with the ``context_factory`` function, such as using a
+``collections.OrderedDict`` or pre-loading values into the node.
+
+This function is used when creating snapshots, the context root, new contexts,
+and intermediate segments when setting values by paths.
+
+::
+
+    created = 0
+
+    def factory():
+        global created
+        created += 1
+        return dict()
+
+    # Root context container
+    context = texas.Context(context_factory=factory)
+    assert created == 1
+
+    # Including contexts
+    ctx = context.include("some-context")
+    assert created == 2
+
+    # Segments along a path when setting values
+    ctx["foo.bar"] = "value"
+    assert created == 3
+
 Internals
 ---------
 
