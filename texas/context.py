@@ -96,8 +96,7 @@ class ContextView(collections.abc.MutableMapping):
         return self._path + self._root._separator + path
 
     def __getitem__(self, path):
-        # Get uses absolute paths, since it has to
-        # walk each context from its root node.
+        # Have to walk the current context from its root node.
         path = self.absolute_path(path)
 
         # Raises KeyError if there is no context with the given path
@@ -112,6 +111,9 @@ class ContextView(collections.abc.MutableMapping):
         return ContextView(self._root, self._contexts, path)
 
     def __setitem__(self, path, value):
+        # Have to walk the current context from its root node.
+        path = self.absolute_path(path)
+
         context = self._contexts[-1]
         if self._root._separator in path:
             path, last = path.rsplit(self._root._separator, 1)
@@ -121,6 +123,9 @@ class ContextView(collections.abc.MutableMapping):
         context[path] = value
 
     def __delitem__(self, path):
+        # Have to walk the current context from its root node.
+        path = self.absolute_path(path)
+
         context = self._contexts[-1]
         if self._root._separator in path:
             path, last = path.rsplit(self._root._separator, 1)

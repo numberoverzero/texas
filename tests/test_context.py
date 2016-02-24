@@ -216,7 +216,7 @@ def test_snapshot_nested(context):
     assert both.snapshot == expected
 
 
-def test_contextmanager(context):
+def test_context_manager(context):
     path = "foo.bar.baz"
     with context.include("bottom", "top") as both:
         both[path] = "blah"
@@ -252,3 +252,24 @@ def test_custom_factory():
     root["key.inner"] = "value"
     assert len(created) == 3
     assert created[1]["key"]["inner"] == "value"
+
+
+def test_view_updates(context):
+    """View will apply updates against top context, regardless of depth."""
+    root = context.include("root")
+    layer = context.include("layer")
+
+    root.update(**{
+        "foo": {
+            "root-key": "root"
+        }
+    })
+
+    # layer is initially empty
+
+    both = context.include("root", "layer")
+
+    foo_view = both["foo"]
+    foo_view["layer-key"] = "layer"
+    print(context._contexts)
+    assert layer["foo.layer-key"] == "layer"
