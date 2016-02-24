@@ -227,3 +227,28 @@ def test_contextmanager(context):
 def test_empty_includes(context):
     with pytest.raises(ValueError):
         context.include()
+
+
+def test_custom_factory():
+    created = []
+
+    def context_factory():
+        context = dict()
+        created.append(context)
+        return context
+
+    context = Context(context_factory=context_factory)
+
+    # Called for initial context container
+    assert len(created) == 1
+    assert context._contexts is created[0]
+
+    # Called for context creation
+    root = context.include("root")
+    assert len(created) == 2
+    assert created[1] is created[0]["root"]
+
+    # Called for segment creation during set
+    root["key.inner"] = "value"
+    assert len(created) == 3
+    assert created[1]["key"]["inner"] == "value"

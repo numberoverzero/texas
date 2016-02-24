@@ -41,16 +41,19 @@ class Context:
         assert "only.in.other" not in root
         assert other["only.in.other"] == "both_value"
     """
-    def __init__(self, path_separator="."):
+    def __init__(self, context_factory=dict, path_separator="."):
         """
         Args:
+            context_factory (Callable([], collections.abc.MutableMapping)):
+                No-arg function that returns a mapping.  Used to create the
+                nested contexts.  Defaults to dict.
             path_separator (Optional(str)):
                 This is the path separator passed to the PathDict
                 constructor when instantiating new contexts.  Defaults to "."
         """
         self._separator = path_separator
-        self._contexts = dict()
-        self._create = create_on_missing(dict)
+        self._create = create_on_missing(context_factory)
+        self._contexts = self._create()
 
     def get_context(self, path, root=None, create=True):
         if root is None:
