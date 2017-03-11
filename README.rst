@@ -1,7 +1,7 @@
 .. image:: https://img.shields.io/travis/numberoverzero/texas/master.svg?style=flat-square
     :target: https://travis-ci.org/numberoverzero/texas
-.. image:: https://img.shields.io/coveralls/numberoverzero/texas/master.svg?style=flat-square
-    :target: https://coveralls.io/github/numberoverzero/texas
+.. image:: https://img.shields.io/codecov/c/github/numberoverzero/texas/master.svg?style=flat-square
+    :target: https://codecov.io/gh/numberoverzero/texas/branch/master
 .. image:: https://img.shields.io/pypi/v/texas.svg?style=flat-square
     :target: https://pypi.python.org/pypi/texas
 .. image:: https://img.shields.io/github/issues-raw/numberoverzero/texas.svg?style=flat-square
