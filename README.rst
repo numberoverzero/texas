@@ -125,7 +125,7 @@ bottom is still the same::
     assert bottom["key"] == "bottom"
 
 This breaks down with mutable values - for instance, this will modify the list
-in the bottom context:
+in the bottom context::
 
     context = texas.Context()
     bottom = context.include("bottom")
@@ -218,7 +218,7 @@ the same rules as texas is available
 Context Factory
 ---------------
 
-By default, texas uses simple ``dict``s for storage.  However, this can be
+By default, texas uses simple ``dict``\s for storage.  However, this can be
 customized with the ``context_factory`` function, such as using a
 ``collections.OrderedDict`` or pre-loading values into the node.
 
